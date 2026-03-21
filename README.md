@@ -159,6 +159,12 @@ python3 cli.py diff                  # latest two runs -> Markdown diff
 python3 cli.py explain               # generate both HTML + diff artifacts
 ```
 
+The trace viewer now also highlights:
+- the **first suspicious step**
+- the **likely failure step**
+- **error events** directly in the timeline
+- **event-type filters** for narrowing the trace quickly
+
 
 ## Two demo failure modes
 

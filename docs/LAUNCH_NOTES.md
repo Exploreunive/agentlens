@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.2-alpha — Explain why your agent failed with a usable local debugging CLI
+v0.1.3-alpha — Explain why your agent failed with highlighted suspicious steps and trace filters
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed
