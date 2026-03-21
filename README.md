@@ -154,9 +154,13 @@ pytest -q                            # run tests
 python3 cli.py demo                  # minimal run
 python3 cli.py demo divergent        # hidden degradation demo
 python3 cli.py demo failure          # visible failure demo
+python3 cli.py demo openai-wrapper   # minimal OpenAI-compatible wrapper demo
 python3 cli.py view                  # latest trace -> HTML
 python3 cli.py diff                  # latest two runs -> Markdown diff
 python3 cli.py explain               # generate both HTML + diff artifacts
+python3 cli.py baseline save good-run
+python3 cli.py baseline list
+python3 cli.py regression check good-run
 ```
 
 The trace viewer now also highlights:
@@ -194,6 +198,8 @@ Current alpha prototype can already:
 - render a local HTML debugging view
 - demonstrate both hidden degradation and visible failure scenarios
 - instrument agent runs with higher-level SDK helpers for spans, LLM calls, tool calls, and memory events
+- use a minimal OpenAI-compatible wrapper for lower-friction LLM tracing
+- save named baselines and generate regression reports against newer runs
 
 ## Example: hidden failure before obvious answer degradation
 
@@ -242,6 +248,32 @@ with client.span(run_id=run_id, name='research_and_answer') as span:
 ```
 
 This keeps the local JSONL event model explicit, while reducing repetitive boilerplate for common agent flows.
+
+## OpenAI-compatible wrapper demo
+
+AgentLens now includes a minimal OpenAI-compatible wrapper example for lower-friction LLM tracing:
+
+```bash
+python3 cli.py demo openai-wrapper
+python3 cli.py view
+```
+
+The wrapper lives in `sdk/python/agentlens/openai_wrapper.py` and is intentionally tiny. The goal is not to be a full SDK replacement, but to show the smallest useful integration shape for tracing real LLM calls.
+
+## Baselines and regression checks
+
+AgentLens now also supports a simple local baseline workflow:
+
+```bash
+python3 cli.py demo minimal
+python3 cli.py baseline save good-run
+python3 cli.py demo failure
+python3 cli.py regression check good-run
+```
+
+This writes a Markdown regression report that makes it easier to answer a higher-value debugging question:
+
+> Did the latest run get worse than the baseline, and where did it diverge?
 
 ## Privacy-safe tracing
 

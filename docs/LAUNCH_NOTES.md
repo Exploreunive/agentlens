@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.5-alpha — Explain why your agent failed with privacy-safe local tracing
+v0.1.6-alpha — Explain why your agent failed with integration-ready tracing and local regression checks
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed

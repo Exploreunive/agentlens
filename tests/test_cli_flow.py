@@ -49,3 +49,26 @@ def test_cli_supports_divergent_diff_and_explain(tmp_path: Path):
     html_text = html_file.read_text(encoding='utf-8')
     assert 'AgentLens Run Divergence' in diff_text
     assert 'AgentLens Trace Viewer' in html_text
+
+
+def test_cli_supports_baseline_and_regression_workflow(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    baseline_demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'minimal'], cwd=work, capture_output=True, text=True)
+    assert baseline_demo.returncode == 0, baseline_demo.stderr
+
+    baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert baseline_save.returncode == 0, baseline_save.stderr
+
+    candidate_demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert candidate_demo.returncode == 0, candidate_demo.stderr
+
+    regression = subprocess.run([sys.executable, 'cli.py', 'regression', 'check', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert regression.returncode == 0, regression.stderr
+
+    report = work / 'artifacts' / 'regression_golden-run.md'
+    assert report.exists()
+    text = report.read_text(encoding='utf-8')
+    assert 'AgentLens Regression Report' in text
+    assert 'regression_detected' in text

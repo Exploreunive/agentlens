@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.6-alpha
+- add a minimal OpenAI-compatible wrapper demo for lower-friction LLM tracing
+- add local baseline save/list commands and Markdown regression reports
+- extend the CLI with `demo openai-wrapper`, `baseline`, and `regression check`
+- document integration and regression workflows in the README
+
 ## v0.1.5-alpha
 - add optional privacy-safe redaction for local traces
 - redact common secret-like strings, emails, phone numbers, and configured sensitive keys before writing JSONL events
