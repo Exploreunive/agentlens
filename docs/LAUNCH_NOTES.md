@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.4-alpha — Explain why your agent failed with ergonomic local-first instrumentation helpers
+v0.1.5-alpha — Explain why your agent failed with privacy-safe local tracing
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed

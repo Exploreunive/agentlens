@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentlens import AgentLensClient
+from agentlens import AgentLensClient, redact_payload, redact_string
 
 
 def test_emit_writes_jsonl(tmp_path: Path):
@@ -69,3 +69,26 @@ def test_helper_methods_and_span_emit_structured_events(tmp_path: Path):
     assert 'tool.result' in types
     assert 'memory.recall' in types
     assert 'memory.write' in types
+
+
+def test_redaction_helpers_mask_common_sensitive_values(tmp_path: Path):
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage), redact_sensitive=True)
+    run_id = client.new_run()
+    client.emit(
+        type='llm.request',
+        run_id=run_id,
+        payload={
+            'prompt': 'Email me at test@example.com and use token ghp_secretToken12345',
+            'api_key': 'sk-secret-value',
+            'phone': '13800138000',
+        },
+    )
+
+    record = json.loads(next(storage.glob('*.jsonl')).read_text(encoding='utf-8').strip())
+    assert record['payload']['prompt'].count('[redacted_') >= 2
+    assert record['payload']['api_key'] == '[redacted]'
+    assert record['payload']['phone'] == '[redacted_phone]'
+
+    assert redact_string('contact test@example.com') == 'contact [redacted_email]'
+    assert redact_payload({'token': 'ghp_abc12345678'})['token'] == '[redacted_secret]'

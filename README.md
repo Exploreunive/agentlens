@@ -243,6 +243,23 @@ with client.span(run_id=run_id, name='research_and_answer') as span:
 
 This keeps the local JSONL event model explicit, while reducing repetitive boilerplate for common agent flows.
 
+## Privacy-safe tracing
+
+AgentLens now also supports an optional local redaction mode for sensitive payloads:
+
+```python
+from agentlens import AgentLensClient
+
+client = AgentLensClient(redact_sensitive=True)
+```
+
+When enabled, AgentLens will automatically:
+- redact common sensitive keys like `api_key`, `token`, and `password`
+- scrub common secrets such as `sk-...` and `ghp_...`
+- mask email addresses and phone numbers in captured strings
+
+This is especially useful when developers want to trace real agent runs locally without dumping obvious secrets into JSONL artifacts.
+
 ## Vision
 
 Make agent systems debuggable, replayable, and trustworthy.

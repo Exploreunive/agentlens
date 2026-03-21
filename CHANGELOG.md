@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.5-alpha
+- add optional privacy-safe redaction for local traces
+- redact common secret-like strings, emails, phone numbers, and configured sensitive keys before writing JSONL events
+- expose redaction helpers from the SDK for downstream integrations
+- document privacy-safe local tracing and cover it with regression tests
+
 ## v0.1.4-alpha
 - add ergonomic SDK helpers for spans, LLM calls, tool calls, and memory events
 - refactor demo agents to use the higher-level instrumentation flow

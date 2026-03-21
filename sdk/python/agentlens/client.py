@@ -7,12 +7,31 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
 from .models import AgentLensEvent
+from .redaction import redact_payload
+
+DEFAULT_SENSITIVE_KEYS = {
+    'api_key',
+    'authorization',
+    'password',
+    'secret',
+    'token',
+    'access_token',
+    'refresh_token',
+}
 
 
 class AgentLensClient:
-    def __init__(self, storage_dir: str = ".agentlens/traces"):
+    def __init__(
+        self,
+        storage_dir: str = '.agentlens/traces',
+        *,
+        redact_sensitive: bool = False,
+        sensitive_keys: Optional[set[str]] = None,
+    ):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        self.redact_sensitive = redact_sensitive
+        self.sensitive_keys = {key.lower() for key in (sensitive_keys or DEFAULT_SENSITIVE_KEYS)}
 
     def new_run(self) -> str:
         return str(uuid.uuid4())
@@ -24,14 +43,18 @@ class AgentLensClient:
         run_id: str,
         payload: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
-        status: str = "ok",
+        status: str = 'ok',
         span_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
     ) -> AgentLensEvent:
+        safe_payload = payload or {}
+        if self.redact_sensitive:
+            safe_payload = redact_payload(safe_payload, self.sensitive_keys)
+
         event = AgentLensEvent(
             type=type,
             run_id=run_id,
-            payload=payload or {},
+            payload=safe_payload,
             metrics=metrics or {},
             status=status,
             span_id=span_id or str(uuid.uuid4()),
@@ -180,6 +203,6 @@ class AgentLensClient:
         )
 
     def _append_event(self, event: AgentLensEvent) -> None:
-        out = self.storage_dir / f"{event.run_id}.jsonl"
-        with out.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+        out = self.storage_dir / f'{event.run_id}.jsonl'
+        with out.open('a', encoding='utf-8') as f:
+            f.write(json.dumps(event.to_dict(), ensure_ascii=False) + '\n')
