@@ -20,3 +20,7 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert 'failure summary' in html
     assert 'suspicious signals' in html
     assert 'memory_conflict' in html
+    assert 'total latency' in html
+    assert 'input tokens' in html
+    assert 'tool calls' in html
+    assert '<strong>event counts</strong>' in html

@@ -38,5 +38,8 @@ python3 diff_runs.py
 pytest -q
 ```
 
+## Current release title
+v0.1.1-alpha — Explain why your agent failed with metrics-aware local debugging
+
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed
