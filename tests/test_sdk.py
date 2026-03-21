@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from agentlens import AgentLensClient, redact_payload, redact_string
+from agentlens.openai_wrapper import OpenAIResponsesTracer
 
 
 def test_emit_writes_jsonl(tmp_path: Path):
@@ -92,3 +93,46 @@ def test_redaction_helpers_mask_common_sensitive_values(tmp_path: Path):
 
     assert redact_string('contact test@example.com') == 'contact [redacted_email]'
     assert redact_payload({'token': 'ghp_abc12345678'})['token'] == '[redacted_secret]'
+
+
+def test_span_emits_error_event_when_exception_raised(tmp_path: Path):
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage))
+    run_id = client.new_run()
+
+    try:
+        with client.span(run_id=run_id, name='failing_span'):
+            raise RuntimeError('boom')
+    except RuntimeError:
+        pass
+
+    records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
+    assert records[0]['type'] == 'agent.decision'
+    assert records[1]['type'] == 'error'
+    assert records[1]['payload']['kind'] == 'span_error'
+    assert 'boom' in records[1]['payload']['message']
+
+
+def test_openai_wrapper_records_response_and_metrics(tmp_path: Path):
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage), redact_sensitive=True)
+    tracer = OpenAIResponsesTracer(client)
+    run_id = client.new_run()
+
+    response = tracer.trace_chat_completion(
+        run_id=run_id,
+        model='gpt-4o-mini',
+        prompt='Contact me at test@example.com before answering',
+        call=lambda: {
+            'output_text': 'Sure — I will summarize the weather guidance.',
+            'usage': {'input_tokens': 10, 'output_tokens': 6, 'total_tokens': 16},
+            'finish_reason': 'stop',
+        },
+    )
+
+    assert response['finish_reason'] == 'stop'
+    records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
+    assert [record['type'] for record in records] == ['llm.request', 'llm.response', 'llm.response']
+    assert records[0]['payload']['prompt'] == 'Contact me at [redacted_email] before answering'
+    assert records[2]['metrics']['total_tokens'] == 16
+    assert records[2]['payload']['finish_reason'] == 'stop'

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.8-alpha
+- add deeper regression coverage for baseline persistence and wrapper instrumentation
+- add explicit tests for span error emission and OpenAI-compatible wrapper metrics capture
+- strengthen confidence that the newer integration and regression workflows behave as expected
+
 ## v0.1.7-alpha
 - tighten the README opening around the local-first debugging wedge
 - add go-to-market notes covering positioning, launch channels, and demo hooks
