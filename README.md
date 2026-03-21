@@ -1,0 +1,159 @@
+# AgentLens
+
+**Explain why your agent failed.**
+
+AgentLens is an open-source debugging workspace for LLM agents, focused on:
+
+1. **Failure explanation** — where the run likely went wrong
+2. **Memory attribution** — which memory influenced the outcome
+3. **Run divergence** — where run B started behaving differently from run A
+
+Most tools help you log traces.
+AgentLens is being built to help you answer the harder question:
+
+> Why did this agent make the wrong decision?
+
+## Why AgentLens
+
+Most LLM observability tools are good at showing traces.
+Agent systems need more than traces — they need **failure explanation**.
+
+Real agent failures are often caused by:
+
+- tool output being misinterpreted
+- recalled memory conflicting with fresh evidence
+- the run diverging from a previously good trajectory
+- the true failure starting earlier than the final bad answer
+
+External signals point in the same direction:
+- practitioners increasingly talk about **agent debugging** and **replayability** as missing layers
+- recent work like Microsoft Research's **AgentRx** frames the problem as locating the **critical failure step** and the **root cause** in agent trajectories
+
+AgentLens is built around that wedge: **explain where an agent run went wrong, and why.**
+
+## Positioning
+
+AgentLens is **not** trying to replace Langfuse, LangSmith, or Helicone head-on.
+
+Instead, it starts with a sharper wedge:
+
+- **agent runtime debugging**
+- **memory observability**
+- **run replay + regression diff**
+
+## MVP
+
+### v0.1-alpha
+- capture one agent run as structured events
+- store traces locally
+- generate a failure summary for the latest run
+- render a small local HTML debugging view
+- compare two runs and surface the first divergence
+- highlight suspicious signals such as memory/tool conflicts
+
+### v0.2
+- stronger failure heuristics
+- explicit stale-memory / conflicting-evidence summaries
+- improved divergence rendering
+- better replay-oriented inspection flow
+
+### v0.3
+- richer memory attribution
+- run bundles for sharing/debugging
+- framework adapters
+
+## Initial users
+
+- solo builders shipping AI agents
+- small teams building internal copilots
+- developers working with tool-calling agents
+- engineers debugging memory-enabled agent systems
+
+## What makes this different
+
+### 1. Root-cause debugging, not just observability
+The goal is not only to log a run, but to identify the likely failure point and suspicious signals.
+
+### 2. Memory attribution is first-class
+Most tools treat memory as metadata.
+AgentLens treats memory as part of the decision path and highlights when memory conflicts with fresh tool evidence.
+
+### 3. Run divergence is a core workflow
+Not just dashboards — the system should help answer where run B started behaving differently from run A.
+
+### 4. Framework-light
+The SDK should work with:
+- OpenAI SDK
+- custom agent loops
+- lightweight wrappers
+- eventually LangGraph / AutoGen / CrewAI adapters
+
+## Repo plan
+
+- `sdk/python/` — Python SDK for event capture
+- `server/` — ingestion + storage API
+- `web/` — trace viewer UI
+- `docs/` — architecture, schema, roadmap
+- `examples/` — minimal instrumented agents
+
+## Quickstart
+
+```bash
+cd agentlens
+python3 examples/divergent_agent.py  # generate two runs with hidden memory/tool conflict
+python3 viewer.py                    # render latest run with root-cause card
+python3 diff_runs.py                 # show where the two runs diverged
+pytest -q                            # run tests
+```
+
+
+## Two demo failure modes
+
+### 1. Hidden degradation
+```bash
+python3 examples/divergent_agent.py
+python3 diff_runs.py
+python3 viewer.py
+```
+Shows a case where the final answer still looks acceptable, but the run already contains a `memory_conflict` signal.
+
+### 2. Visible failure
+```bash
+python3 examples/failure_answer_agent.py
+python3 diff_runs.py
+python3 viewer.py
+```
+Shows a case where stale recalled memory overrides fresh tool evidence and the final answer visibly degrades.
+
+## What you get today
+
+Current alpha prototype can already:
+- emit structured JSONL traces
+- generate a root-cause style failure card
+- surface suspicious signals such as `memory_conflict` and `stale_memory_override`
+- compare two runs and show the first divergence
+- render a local HTML debugging view
+- demonstrate both hidden degradation and visible failure scenarios
+
+## Example: hidden failure before obvious answer degradation
+
+A useful debugging tool should catch this situation:
+- the final answer still *looks* acceptable
+- but recalled memory conflicts with fresh tool evidence
+- the run is already unreliable even before the answer visibly breaks
+
+That is the kind of failure AgentLens is trying to surface.
+
+See also: `docs/EXAMPLE_FAILURE.md`
+
+## Vision
+
+Make agent systems debuggable, replayable, and trustworthy.
+
+
+## Road to v0.2
+- stronger root-cause heuristics
+- better divergence explanation wording
+- richer memory attribution
+- replay-oriented run inspection
+- framework adapters (starting with OpenAI SDK)
