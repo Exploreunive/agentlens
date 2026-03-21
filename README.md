@@ -2,7 +2,12 @@
 
 **Explain why your agent failed.**
 
-AgentLens is an open-source debugging workspace for LLM agents, focused on:
+AgentLens is a **local-first debugger for LLM agents**.
+It helps you go beyond “here’s the trace” and answer a more useful question:
+
+> **Where did the run actually start going wrong?**
+
+AgentLens focuses on:
 
 1. **Failure explanation** — where the run likely went wrong
 2. **Memory attribution** — which memory influenced the outcome
@@ -200,6 +205,17 @@ Current alpha prototype can already:
 - instrument agent runs with higher-level SDK helpers for spans, LLM calls, tool calls, and memory events
 - use a minimal OpenAI-compatible wrapper for lower-friction LLM tracing
 - save named baselines and generate regression reports against newer runs
+- support privacy-safe local tracing with optional redaction
+
+## Why someone would try this instead of another tracing tool
+
+Because the point is not just to collect events.
+
+The point is to help answer questions like:
+- Why did this run become unreliable?
+- Which suspicious step showed up before the final answer visibly degraded?
+- Did the latest run regress against a known-good baseline?
+- Did stale memory or fresh tool evidence change the outcome?
 
 ## Example: hidden failure before obvious answer degradation
 

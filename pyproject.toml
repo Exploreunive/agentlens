@@ -1,6 +1,6 @@
 [project]
 name = "agentlens"
-version = "0.1.6-alpha"
+version = "0.1.7-alpha"
 description = "Open-source runtime debugging, memory observability, and regression diffing for LLM agents"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.7-alpha
+- tighten the README opening around the local-first debugging wedge
+- add go-to-market notes covering positioning, launch channels, and demo hooks
+- add first-pass launch copy drafts for GitHub, Reddit, X, and Show HN
+- strengthen the external narrative around failure explanation, memory attribution, and regression diffing
+
 ## v0.1.6-alpha
 - add a minimal OpenAI-compatible wrapper demo for lower-friction LLM tracing
 - add local baseline save/list commands and Markdown regression reports

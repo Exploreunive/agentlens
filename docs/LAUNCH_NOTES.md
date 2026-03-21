@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.6-alpha — Explain why your agent failed with integration-ready tracing and local regression checks
+v0.1.7-alpha — Explain why your agent failed with a sharper launch story and developer-facing wedge
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed
