@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.0-alpha
+- add golden-output tests for diff and regression report snapshots
+- add malformed-input coverage for trace loading, wrapper fallbacks, viewer rendering, and baseline failure paths
+- move the validation strategy beyond self-authored happy-path tests toward output contracts and adversarial cases
+
 ## v0.1.9-alpha
 - extend regression workflow tests to cover baseline listing and report contents
 - extend viewer tests to assert more of the highlighted debugging controls
