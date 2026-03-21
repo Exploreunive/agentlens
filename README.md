@@ -148,6 +148,17 @@ python3 diff_runs.py                 # show where the two runs diverged
 pytest -q                            # run tests
 ```
 
+## CLI
+
+```bash
+python3 cli.py demo                  # minimal run
+python3 cli.py demo divergent        # hidden degradation demo
+python3 cli.py demo failure          # visible failure demo
+python3 cli.py view                  # latest trace -> HTML
+python3 cli.py diff                  # latest two runs -> Markdown diff
+python3 cli.py explain               # generate both HTML + diff artifacts
+```
+
 
 ## Two demo failure modes
 

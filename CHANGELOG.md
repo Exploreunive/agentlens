@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.2-alpha
+- expand CLI into a more usable debugging entrypoint with `demo`, `view`, `diff`, and `explain`
+- support built-in demo scenarios for minimal, divergent, and visible-failure runs
+- add regression coverage for CLI diff/explain flows
+- document the CLI workflow in the README
+
 ## v0.1.1-alpha
 - add run-level metrics to the local HTML trace viewer
 - surface total latency, input/output tokens, and tool call count at the top of each run

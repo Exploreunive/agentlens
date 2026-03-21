@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.1-alpha — Explain why your agent failed with metrics-aware local debugging
+v0.1.2-alpha — Explain why your agent failed with a usable local debugging CLI
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed
