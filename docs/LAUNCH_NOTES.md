@@ -39,7 +39,7 @@ pytest -q
 ```
 
 ## Current release title
-v0.1.3-alpha — Explain why your agent failed with highlighted suspicious steps and trace filters
+v0.1.4-alpha — Explain why your agent failed with ergonomic local-first instrumentation helpers
 
 ## Suggested first release title
 v0.1.0-alpha — Explain why your agent failed

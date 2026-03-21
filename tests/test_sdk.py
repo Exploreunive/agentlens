@@ -21,3 +21,51 @@ def test_emit_writes_jsonl(tmp_path: Path):
     assert obj['type'] == 'run.start'
     assert obj['run_id'] == run_id
     assert obj['payload']['task'] == 'hello'
+
+
+def test_helper_methods_and_span_emit_structured_events(tmp_path: Path):
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage))
+    run_id = client.new_run()
+
+    with client.span(run_id=run_id, name='root_flow', payload={'phase': 'test'}) as span_event:
+        llm_events = client.record_llm_call(
+            run_id=run_id,
+            model='gpt-4o-mini',
+            prompt='hello',
+            response='hi',
+            decision='reply',
+            reason='simple greeting',
+            metrics={'latency_ms': 12, 'input_tokens': 3, 'output_tokens': 2},
+            parent_span_id=span_event.span_id,
+        )
+        client.record_tool_call(
+            run_id=run_id,
+            tool_name='weather.get_forecast',
+            args={'city': 'Shanghai'},
+            result={'condition': 'sunny'},
+            metrics={'latency_ms': 8},
+            parent_span_id=llm_events['response'].span_id,
+        )
+        client.record_memory_recall(
+            run_id=run_id,
+            content='User likes jogging in sunny weather',
+            reason='recent preference memory',
+            parent_span_id=span_event.span_id,
+        )
+        client.record_memory_write(
+            run_id=run_id,
+            content='Forecast was sunny',
+            memory_type='episodic',
+            parent_span_id=span_event.span_id,
+        )
+
+    records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
+    types = [record['type'] for record in records]
+    assert 'agent.decision' in types
+    assert 'llm.request' in types
+    assert 'llm.response' in types
+    assert 'tool.call' in types
+    assert 'tool.result' in types
+    assert 'memory.recall' in types
+    assert 'memory.write' in types

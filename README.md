@@ -193,6 +193,7 @@ Current alpha prototype can already:
 - compare two runs and show the first divergence
 - render a local HTML debugging view
 - demonstrate both hidden degradation and visible failure scenarios
+- instrument agent runs with higher-level SDK helpers for spans, LLM calls, tool calls, and memory events
 
 ## Example: hidden failure before obvious answer degradation
 
@@ -204,6 +205,43 @@ A useful debugging tool should catch this situation:
 That is the kind of failure AgentLens is trying to surface.
 
 See also: `docs/EXAMPLE_FAILURE.md`
+
+## SDK helpers
+
+The Python SDK now supports a more ergonomic, local-first instrumentation style:
+
+```python
+from agentlens import AgentLensClient
+
+client = AgentLensClient()
+run_id = client.new_run()
+client.emit(type='run.start', run_id=run_id, payload={'task': 'answer a question'})
+
+with client.span(run_id=run_id, name='research_and_answer') as span:
+    llm = client.record_llm_call(
+        run_id=run_id,
+        model='gpt-4o-mini',
+        prompt='Should we call the weather tool?',
+        decision='call_weather_tool',
+        reason='Need fresh evidence',
+        metrics={'latency_ms': 42, 'input_tokens': 30, 'output_tokens': 16},
+        parent_span_id=span.span_id,
+    )
+    client.record_tool_call(
+        run_id=run_id,
+        tool_name='weather.get_forecast',
+        args={'city': 'Shanghai'},
+        result={'condition': 'rain'},
+        parent_span_id=llm['response'].span_id,
+    )
+    client.record_memory_recall(
+        run_id=run_id,
+        content='User usually jogs when it is sunny',
+        parent_span_id=span.span_id,
+    )
+```
+
+This keeps the local JSONL event model explicit, while reducing repetitive boilerplate for common agent flows.
 
 ## Vision
 

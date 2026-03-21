@@ -28,4 +28,5 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert 'likely failure step' in html
     assert 'event filters' in html
     assert 'data-event-filter="error"' in html
-    assert 'Event #6' in html
+    assert 'first suspicious step: <strong>Event #' in html
+    assert 'likely failure step: <strong>Event #' in html

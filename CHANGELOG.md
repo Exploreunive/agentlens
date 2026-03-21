@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.4-alpha
+- add ergonomic SDK helpers for spans, LLM calls, tool calls, and memory events
+- refactor demo agents to use the higher-level instrumentation flow
+- strengthen SDK regression coverage for the new helper methods
+- document a more realistic local-first instrumentation style in the README
+
 ## v0.1.3-alpha
 - highlight the first suspicious step and likely failure step directly in the local trace viewer
 - visually emphasize error events in the timeline
