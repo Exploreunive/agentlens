@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.9-alpha
+- extend regression workflow tests to cover baseline listing and report contents
+- extend viewer tests to assert more of the highlighted debugging controls
+- keep tightening coverage around the developer-facing workflows added in recent iterations
+
 ## v0.1.8-alpha
 - add deeper regression coverage for baseline persistence and wrapper instrumentation
 - add explicit tests for span error emission and OpenAI-compatible wrapper metrics capture

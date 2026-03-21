@@ -61,6 +61,10 @@ def test_cli_supports_baseline_and_regression_workflow(tmp_path: Path):
     baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
     assert baseline_save.returncode == 0, baseline_save.stderr
 
+    baseline_list = subprocess.run([sys.executable, 'cli.py', 'baseline', 'list'], cwd=work, capture_output=True, text=True)
+    assert baseline_list.returncode == 0, baseline_list.stderr
+    assert 'golden-run' in baseline_list.stdout
+
     candidate_demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
     assert candidate_demo.returncode == 0, candidate_demo.stderr
 
@@ -72,3 +76,5 @@ def test_cli_supports_baseline_and_regression_workflow(tmp_path: Path):
     text = report.read_text(encoding='utf-8')
     assert 'AgentLens Regression Report' in text
     assert 'regression_detected' in text
+    assert 'baseline: `golden-run`' in text
+    assert 'candidate:' in text
