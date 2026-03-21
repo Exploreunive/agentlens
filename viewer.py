@@ -16,15 +16,24 @@ def load_latest_trace() -> List[Dict[str, Any]]:
     files = sorted(TRACE_DIR.glob('*.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
         raise SystemExit('No trace files found in .agentlens/traces')
-    latest = files[0]
-    events = []
-    with latest.open('r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            events.append(json.loads(line))
-    return events
+
+    parsed = []
+    for trace_file in files:
+        events = []
+        with trace_file.open('r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                events.append(json.loads(line))
+        parsed.append((trace_file, events))
+
+    # Prefer the most recent run that already contains suspicious/error signals.
+    for _, events in parsed:
+        if any(e.get('type') == 'error' for e in events):
+            return events
+
+    return parsed[0][1]
 
 
 def render_event(event: Dict[str, Any]) -> str:

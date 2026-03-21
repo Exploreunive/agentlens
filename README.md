@@ -96,6 +96,48 @@ The SDK should work with:
 - `docs/` — architecture, schema, roadmap
 - `examples/` — minimal instrumented agents
 
+
+## Requirements
+
+- Python **3.10+**
+- A local shell environment that can run `python3`
+- No external model/API dependency is required for the current alpha demos
+
+## Installation
+
+```bash
+git clone https://github.com/Exploreunive/agentlens.git
+cd agentlens
+```
+
+Optional: create a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Run tests:
+
+```bash
+pytest -q
+```
+
+## Project structure
+
+```text
+agentlens/
+├── sdk/python/agentlens/   # trace capture SDK
+├── examples/               # demo agent runs
+├── docs/                   # architecture, schema, launch notes
+├── tests/                  # automated tests
+├── analyzer.py             # run analysis heuristics
+├── explain.py              # root-cause card builder
+├── viewer.py               # local HTML trace viewer
+├── diff_runs.py            # run divergence report
+└── cli.py                  # minimal CLI entrypoint
+```
+
 ## Quickstart
 
 ```bash
@@ -157,3 +199,16 @@ Make agent systems debuggable, replayable, and trustworthy.
 - richer memory attribution
 - replay-oriented run inspection
 - framework adapters (starting with OpenAI SDK)
+
+
+## Current limitations
+
+This is still an **alpha** project.
+
+Current limitations:
+- local-first only
+- no hosted service
+- no production-grade replay engine yet
+- no official OpenAI / LangGraph / AutoGen adapters yet
+- root-cause analysis is heuristic-based, not model-judged or formally verified
+- current UI is a minimal local HTML viewer, not a polished multi-page app
