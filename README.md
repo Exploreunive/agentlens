@@ -217,6 +217,11 @@ The point is to help answer questions like:
 - Did the latest run regress against a known-good baseline?
 - Did stale memory or fresh tool evidence change the outcome?
 
+New in the latest alpha:
+- **failure chains** that connect memory recall / tool evidence / suspicious signal / final answer
+- **answer risk labels** to distinguish hidden degradation from visible failure
+- **divergence timelines** with severity, not just a single first-diff blob
+
 ## Example: hidden failure before obvious answer degradation
 
 A useful debugging tool should catch this situation:

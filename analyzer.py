@@ -3,6 +3,36 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 
+ERROR_TYPES = {
+    'memory_conflict',
+    'stale_memory_override',
+    'span_error',
+    'llm_error',
+}
+
+
+def _tool_result_by_call_span(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    mapping: Dict[str, Dict[str, Any]] = {}
+    for event in events:
+        if event.get('type') == 'tool.result':
+            parent = event.get('parent_span_id')
+            if parent:
+                mapping[parent] = event
+    return mapping
+
+
+def _extract_answer_risk(final_answer: Optional[str], suspicious_signals: List[Dict[str, Any]]) -> str:
+    if not final_answer and suspicious_signals:
+        return 'failed_before_final_answer'
+    if not suspicious_signals:
+        return 'no_explicit_risk_found'
+
+    answer = (final_answer or '').lower()
+    if any(keyword in answer for keyword in ['skip', 'not', 'avoid', 'cannot', 'error', 'failed']):
+        return 'visible_failure'
+    return 'hidden_degradation'
+
+
 def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         'final_answer': None,
@@ -11,52 +41,133 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         'tool_sequence': [],
         'suspicious_signals': [],
         'notes': [],
+        'failure_mode': 'no_explicit_failure',
+        'failure_chain': [],
+        'confidence': 'low',
+        'evidence_summary': [],
     }
+
+    tool_results_by_call = _tool_result_by_call_span(events)
+    latest_recall: Optional[Dict[str, Any]] = None
+    latest_tool_result: Optional[Dict[str, Any]] = None
+    latest_decision: Optional[Dict[str, Any]] = None
 
     for idx, e in enumerate(events):
         et = e.get('type')
         payload = e.get('payload') or {}
 
+        if et == 'agent.decision':
+            latest_decision = {
+                'event_index': idx,
+                'name': payload.get('name'),
+                'payload': payload,
+            }
+
         if et == 'tool.call':
             tool_name = payload.get('tool_name')
             if tool_name:
                 summary['tool_sequence'].append(tool_name)
+                summary['failure_chain'].append({
+                    'event_index': idx,
+                    'kind': 'tool_call',
+                    'label': f'tool call: {tool_name}',
+                })
+
+        if et == 'tool.result':
+            latest_tool_result = {
+                'event_index': idx,
+                'payload': payload,
+            }
 
         if et == 'memory.write':
             content = payload.get('content')
             if content:
-                summary['memory_influence'].append({
+                item = {
                     'kind': 'write',
                     'content': content,
                     'event_index': idx,
+                }
+                summary['memory_influence'].append(item)
+                summary['failure_chain'].append({
+                    'event_index': idx,
+                    'kind': 'memory_write',
+                    'label': f'memory write: {content}',
                 })
 
         if et == 'memory.recall':
             content = payload.get('content')
             if content:
-                summary['memory_influence'].append({
+                latest_recall = {
                     'kind': 'recall',
                     'content': content,
                     'event_index': idx,
+                    'reason': payload.get('reason'),
+                }
+                summary['memory_influence'].append(latest_recall)
+                summary['failure_chain'].append({
+                    'event_index': idx,
+                    'kind': 'memory_recall',
+                    'label': f'memory recall: {content}',
                 })
 
         if et == 'error':
-            summary['suspicious_signals'].append({
+            reason = payload.get('message') or 'error event emitted'
+            signal_type = payload.get('kind') or 'error'
+            signal = {
                 'event_index': idx,
-                'type': payload.get('kind') or 'error',
-                'reason': payload.get('message') or 'error event emitted',
+                'type': signal_type,
+                'reason': reason,
+            }
+            summary['suspicious_signals'].append(signal)
+            summary['failure_chain'].append({
+                'event_index': idx,
+                'kind': 'error',
+                'label': f'{signal_type}: {reason}',
             })
             if summary['likely_failure_point'] is None:
                 summary['likely_failure_point'] = {
                     'event_index': idx,
                     'type': 'error',
-                    'reason': payload.get('message') or 'error event emitted',
+                    'reason': reason,
                 }
 
         if et == 'run.end':
             summary['final_answer'] = payload.get('final_answer')
+            summary['failure_chain'].append({
+                'event_index': idx,
+                'kind': 'final_answer',
+                'label': f"final answer: {payload.get('final_answer')}",
+            })
 
-    if summary['likely_failure_point'] is None:
+    if summary['suspicious_signals']:
+        first_signal = summary['suspicious_signals'][0]
+        summary['confidence'] = 'high' if first_signal['type'] in ERROR_TYPES else 'medium'
+
+        if first_signal['type'] == 'memory_conflict':
+            summary['failure_mode'] = 'memory_vs_tool_conflict'
+        elif first_signal['type'] == 'stale_memory_override':
+            summary['failure_mode'] = 'stale_memory_override'
+        elif first_signal['type'] == 'llm_error':
+            summary['failure_mode'] = 'llm_runtime_error'
+        else:
+            summary['failure_mode'] = 'runtime_error'
+
+        if latest_recall:
+            summary['evidence_summary'].append(
+                f"memory recall at event {latest_recall['event_index']}: {latest_recall['content']}"
+            )
+        if latest_tool_result:
+            summary['evidence_summary'].append(
+                f"tool result at event {latest_tool_result['event_index']}: {latest_tool_result['payload']}"
+            )
+        if latest_decision:
+            summary['evidence_summary'].append(
+                f"decision span at event {latest_decision['event_index']}: {latest_decision['name']}"
+            )
+        summary['evidence_summary'].append(
+            f"first suspicious signal at event {first_signal['event_index']}: {first_signal['type']}"
+        )
+    else:
         recall_events = [m for m in summary['memory_influence'] if m['kind'] == 'recall']
         if recall_events:
             summary['notes'].append('Memory recall occurred; verify whether recalled memory was relevant.')
@@ -65,39 +176,72 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not summary['notes']:
             summary['notes'].append('No explicit failure signal found; inspect decision quality manually.')
 
+    summary['answer_risk'] = _extract_answer_risk(summary['final_answer'], summary['suspicious_signals'])
     return summary
 
 
 def summarize_divergence(a: List[Dict[str, Any]], b: List[Dict[str, Any]]) -> Dict[str, Any]:
     max_len = min(len(a), len(b))
     divergence = None
+    timeline: List[Dict[str, Any]] = []
+    differing_steps = 0
+
     for i in range(max_len):
         ea, eb = a[i], b[i]
-        if ea.get('type') != eb.get('type') or (ea.get('payload') or {}) != (eb.get('payload') or {}):
-            divergence = {
+        a_payload = ea.get('payload') or {}
+        b_payload = eb.get('payload') or {}
+        same = ea.get('type') == eb.get('type') and a_payload == b_payload
+        if not same:
+            differing_steps += 1
+            step = {
                 'event_index': i,
                 'a_type': ea.get('type'),
                 'b_type': eb.get('type'),
-                'a_payload': ea.get('payload') or {},
-                'b_payload': eb.get('payload') or {},
+                'a_payload': a_payload,
+                'b_payload': b_payload,
+                'difference_kind': 'type_mismatch' if ea.get('type') != eb.get('type') else 'payload_mismatch',
             }
-            break
+            timeline.append(step)
+            if divergence is None:
+                divergence = step
 
-    if divergence is None and len(a) != len(b):
-        divergence = {
+    if len(a) != len(b):
+        differing_steps += abs(len(a) - len(b))
+        step = {
             'event_index': max_len,
             'a_type': a[max_len].get('type') if len(a) > max_len else None,
             'b_type': b[max_len].get('type') if len(b) > max_len else None,
             'a_payload': a[max_len].get('payload') if len(a) > max_len else {},
             'b_payload': b[max_len].get('payload') if len(b) > max_len else {},
+            'difference_kind': 'length_mismatch',
         }
+        timeline.append(step)
+        if divergence is None:
+            divergence = step
 
     a_summary = summarize_run(a)
     b_summary = summarize_run(b)
+
+    severity = 'none'
+    if divergence is not None:
+        if a_summary.get('final_answer') != b_summary.get('final_answer'):
+            severity = 'high'
+        elif b_summary.get('suspicious_signals') and not a_summary.get('suspicious_signals'):
+            severity = 'high'
+        elif differing_steps >= 2:
+            severity = 'medium'
+        else:
+            severity = 'low'
+
     return {
         'first_divergence': divergence,
+        'divergence_timeline': timeline,
+        'divergence_count': differing_steps,
+        'severity': severity,
         'a_final_answer': a_summary.get('final_answer'),
         'b_final_answer': b_summary.get('final_answer'),
         'a_suspicious_signals': a_summary.get('suspicious_signals', []),
         'b_suspicious_signals': b_summary.get('suspicious_signals', []),
+        'a_answer_risk': a_summary.get('answer_risk'),
+        'b_answer_risk': b_summary.get('answer_risk'),
     }

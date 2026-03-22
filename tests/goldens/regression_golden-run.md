@@ -1,7 +1,7 @@
 # AgentLens Regression Report
 
-- baseline: `golden-run` (fca2ae6a-3a4d-4191-a8f1-04f5597d6046.jsonl)
-- candidate: `9d06a0a0-2f50-40f4-a016-d638b02d9345.jsonl`
+- baseline: `golden-run` (5316c668-5f54-4bfc-af87-f62a46b9b6d9.jsonl)
+- candidate: `e7d0945b-1ab8-433a-b1ae-bdaf34fcb088.jsonl`
 - regression_detected: `True`
 
 ## Final answer comparison
@@ -13,4 +13,4 @@
 - candidate: [{'event_index': 7, 'type': 'stale_memory_override', 'reason': 'Stale recalled memory overrode fresh weather evidence'}]
 
 ## First divergence
-- {'event_index': 0, 'a_type': 'run.start', 'b_type': 'run.start', 'a_payload': {'task': 'find weather and decide whether to jog'}, 'b_payload': {'task': 'decide whether to jog tomorrow morning'}}
+- {'event_index': 0, 'a_type': 'run.start', 'b_type': 'run.start', 'a_payload': {'task': 'find weather and decide whether to jog'}, 'b_payload': {'task': 'decide whether to jog tomorrow morning'}, 'difference_kind': 'payload_mismatch'}

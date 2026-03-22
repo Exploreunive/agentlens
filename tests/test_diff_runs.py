@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
+from diff_runs import build_report, summarize
+from analyzer import summarize_divergence
 
 
-def test_diff_runs_generates_report(tmp_path: Path):
-    work = tmp_path / 'proj'
-    shutil.copytree(ROOT, work)
-
-    subprocess.run([sys.executable, 'cli.py', 'demo'], cwd=work, check=True)
-    subprocess.run([sys.executable, 'cli.py', 'demo'], cwd=work, check=True)
-    diff = subprocess.run([sys.executable, 'diff_runs.py'], cwd=work, capture_output=True, text=True)
-    assert diff.returncode == 0, diff.stderr
-
-    report = work / 'artifacts' / 'latest_diff.md'
-    assert report.exists()
-    text = report.read_text(encoding='utf-8')
-    assert 'AgentLens Run Divergence' in text
-    assert 'First divergence' in text
-    assert 'Final answer' in text
+def test_build_report_includes_divergence_timeline_and_severity():
+    a = [
+        {'type': 'run.start', 'payload': {}},
+        {'type': 'tool.result', 'payload': {'condition': 'rain'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'skip jogging'}},
+    ]
+    b = [
+        {'type': 'run.start', 'payload': {}},
+        {'type': 'tool.result', 'payload': {'condition': 'sunny'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'jog is fine'}},
+    ]
+    report = build_report('a.jsonl', 'b.jsonl', summarize(a), summarize(b), summarize_divergence(a, b))
+    assert '## Divergence timeline' in report
+    assert '- severity: `high`' in report
+    assert 'payload_mismatch' in report
+    assert 'A answer risk:' in report
+    assert 'B answer risk:' in report

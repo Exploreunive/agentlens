@@ -1,14 +1,23 @@
 # AgentLens Run Divergence
 
-- A: `9f15827b-ebcd-4764-8bdd-3ec4379224e9.jsonl`
-- B: `b57479cc-76af-433b-9274-85305a2117fa.jsonl`
+- A: `26119bda-470a-424d-8269-3dc1b69250b1.jsonl`
+- B: `d4e7970d-c553-49bc-ad36-0b067053090e.jsonl`
+- severity: `high`
+- divergence_count: `3`
 
 ## First divergence
-- {'event_index': 6, 'a_type': 'tool.result', 'b_type': 'tool.result', 'a_payload': {'condition': 'sunny', 'temperature_c': 18}, 'b_payload': {'condition': 'rain', 'temperature_c': 18}}
+- {'event_index': 6, 'a_type': 'tool.result', 'b_type': 'tool.result', 'a_payload': {'condition': 'sunny', 'temperature_c': 18}, 'b_payload': {'condition': 'rain', 'temperature_c': 18}, 'difference_kind': 'payload_mismatch'}
+
+## Divergence timeline
+- event #6: payload_mismatch | A=tool.result {'condition': 'sunny', 'temperature_c': 18} | B=tool.result {'condition': 'rain', 'temperature_c': 18}
+- event #7: type_mismatch | A=run.end {'final_answer': 'Jog is fine tomorrow morning.'} | B=error {'message': 'Recalled memory conflicts with fresh weather tool result', 'kind': 'memory_conflict'}
+- event #8: length_mismatch | A=None {} | B=run.end {'final_answer': 'Jog is fine tomorrow morning.'}
 
 ## Final answer
 - A: Jog is fine tomorrow morning.
 - B: Jog is fine tomorrow morning.
+- A answer risk: no_explicit_risk_found
+- B answer risk: hidden_degradation
 
 ## Suspicious signals
 - A: []

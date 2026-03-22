@@ -149,6 +149,10 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     ) or '<li>No suspicious signals detected</li>'
     evidence_items = ''.join(f'<li>{html.escape(str(e))}</li>' for e in card.get('evidence', []))
     inspect_items = ''.join(f'<li>{html.escape(str(i))}</li>' for i in card.get('inspect_next', []))
+    chain_items = ''.join(
+        f"<li>#{html.escape(str(step.get('event_index')))} · {html.escape(str(step.get('kind')))} · {html.escape(str(step.get('label')))}</li>"
+        for step in summary.get('failure_chain', [])
+    ) or '<li>No failure chain available</li>'
     event_count_items = ''.join(
         f"<li>{html.escape(str(k))}: {html.escape(str(v))}</li>" for k, v in sorted(metrics.get('event_counts', {}).items())
     ) or '<li>No events recorded</li>'
@@ -238,8 +242,8 @@ def build_html(events: List[Dict[str, Any]]) -> str:
       <span class="etype">failure summary</span>
     </div>
     <div class="cols">
-      <pre><strong>final answer</strong>\n{final_answer}\n\n<strong>root cause</strong>\n{html.escape(str(card.get('root_cause')))}\n\n<strong>likely failure point</strong>\n{failure_html}</pre>
-      <pre><strong>evidence</strong>\n<ul>{evidence_items}</ul>\n<strong>inspect next</strong>\n<ul>{inspect_items}</ul>\n<strong>notes</strong>\n<ul>{notes}</ul>\n<strong>memory influence</strong>\n<ul>{memory_items}</ul>\n<strong>suspicious signals</strong>\n<ul>{suspicious_items}</ul>\n<strong>event counts</strong>\n<ul>{event_count_items}</ul></pre>
+      <pre><strong>final answer</strong>\n{final_answer}\n\n<strong>root cause</strong>\n{html.escape(str(card.get('root_cause')))}\n\n<strong>failure mode</strong>\n{html.escape(str(summary.get('failure_mode')))}\n\n<strong>answer risk</strong>\n{html.escape(str(summary.get('answer_risk')))}\n\n<strong>likely failure point</strong>\n{failure_html}</pre>
+      <pre><strong>evidence</strong>\n<ul>{evidence_items}</ul>\n<strong>inspect next</strong>\n<ul>{inspect_items}</ul>\n<strong>failure chain</strong>\n<ul>{chain_items}</ul>\n<strong>notes</strong>\n<ul>{notes}</ul>\n<strong>memory influence</strong>\n<ul>{memory_items}</ul>\n<strong>suspicious signals</strong>\n<ul>{suspicious_items}</ul>\n<strong>event counts</strong>\n<ul>{event_count_items}</ul></pre>
     </div>
   </div>
   <div id="trace-events">

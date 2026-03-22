@@ -56,16 +56,36 @@ def summarize(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _format_timeline(divergence: Dict[str, Any]) -> str:
+    timeline = divergence.get('divergence_timeline') or []
+    if not timeline:
+        return '- no divergence detected'
+    lines = []
+    for step in timeline[:6]:
+        lines.append(
+            f"- event #{step.get('event_index')}: {step.get('difference_kind')} | "
+            f"A={step.get('a_type')} {step.get('a_payload')} | "
+            f"B={step.get('b_type')} {step.get('b_payload')}"
+        )
+    return '\n'.join(lines)
+
+
 def build_report(a_name: str, b_name: str, a_sum: Dict[str, Any], b_sum: Dict[str, Any], divergence: Dict[str, Any]) -> str:
     lines = []
-    lines.append(f'# AgentLens Run Divergence\n')
+    lines.append('# AgentLens Run Divergence\n')
     lines.append(f'- A: `{a_name}`')
-    lines.append(f'- B: `{b_name}`\n')
+    lines.append(f'- B: `{b_name}`')
+    lines.append(f"- severity: `{divergence.get('severity')}`")
+    lines.append(f"- divergence_count: `{divergence.get('divergence_count')}`\n")
     lines.append('## First divergence')
     lines.append(f"- {divergence.get('first_divergence')}\n")
+    lines.append('## Divergence timeline')
+    lines.append(_format_timeline(divergence) + '\n')
     lines.append('## Final answer')
     lines.append(f'- A: {a_sum.get("final_answer")}')
-    lines.append(f'- B: {b_sum.get("final_answer")}\n')
+    lines.append(f'- B: {b_sum.get("final_answer")}')
+    lines.append(f"- A answer risk: {divergence.get('a_answer_risk')}")
+    lines.append(f"- B answer risk: {divergence.get('b_answer_risk')}\n")
     lines.append('## Suspicious signals')
     lines.append(f'- A: {divergence.get("a_suspicious_signals", [])}')
     lines.append(f'- B: {divergence.get("b_suspicious_signals", [])}\n')

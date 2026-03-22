@@ -33,3 +33,6 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert 'likely failure step: <strong>Event #' in html
     assert 'flag-suspicious' in html
     assert 'flag-failure' in html
+    assert '<strong>failure mode</strong>' in html
+    assert '<strong>answer risk</strong>' in html
+    assert '<strong>failure chain</strong>' in html

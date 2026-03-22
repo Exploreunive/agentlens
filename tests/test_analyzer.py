@@ -29,6 +29,7 @@ def test_summarize_divergence_finds_first_changed_payload():
     assert d['first_divergence']['event_index'] == 1
     assert d['first_divergence']['a_payload']['condition'] == 'rain'
     assert d['first_divergence']['b_payload']['condition'] == 'sunny'
+    assert d['severity'] == 'low'
 
 
 def test_summarize_run_marks_error_as_suspicious_signal():
@@ -42,3 +43,24 @@ def test_summarize_run_marks_error_as_suspicious_signal():
     assert s['likely_failure_point']['type'] == 'error'
     assert s['suspicious_signals'][0]['type'] == 'memory_conflict'
     assert 'memory conflicts with tool' in s['suspicious_signals'][0]['reason']
+    assert s['failure_mode'] == 'memory_vs_tool_conflict'
+    assert s['answer_risk'] == 'hidden_degradation'
+    assert any(step['kind'] == 'memory_recall' for step in s['failure_chain'])
+
+
+def test_summarize_divergence_emits_timeline_and_count():
+    a = [
+        {'type': 'run.start', 'payload': {}},
+        {'type': 'tool.result', 'payload': {'condition': 'rain'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'skip jogging'}},
+    ]
+    b = [
+        {'type': 'run.start', 'payload': {}},
+        {'type': 'tool.result', 'payload': {'condition': 'sunny'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'jog is fine'}},
+    ]
+    d = summarize_divergence(a, b)
+    assert d['divergence_count'] == 2
+    assert len(d['divergence_timeline']) == 2
+    assert d['divergence_timeline'][0]['difference_kind'] == 'payload_mismatch'
+    assert d['severity'] == 'high'
