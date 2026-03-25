@@ -1,11 +1,16 @@
 # Changelog
 
+## v0.2.2-alpha
+- add a LangGraph-backed agent runtime adapter that traces real model and tool execution into AgentLens events
+- add a real LangGraph demo wired to OpenAI-compatible providers through LangChain `create_agent`
+- add shareable trace bundle export so a run can be zipped with raw trace, HTML view, diff, and summary manifest
+- strengthen the OpenAI-compatible wrapper to support direct SDK calls, provider `base_url`, and better response normalization
+- update README, roadmap, and next-step docs so the published project state matches the actual implementation
+
 ## v0.2.1-alpha
 - add failure chains and answer-risk labels to make failure explanation more actionable
 - add divergence timelines and severity labels to make run comparison more useful
 - extend viewer summary to show failure mode and chain evidence
-
-# Changelog
 
 ## v0.2.0-alpha
 - add golden-output tests for diff and regression report snapshots

@@ -120,6 +120,19 @@ Optional: create a virtual environment
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+python3 -m pip install -e .
+```
+
+If you prefer not to use a virtual environment:
+
+```bash
+python3 -m pip install -e .
+```
+
+Optional: install the OpenAI SDK integration extra
+
+```bash
+python3 -m pip install -e ".[openai]"
 ```
 
 Run tests:
@@ -160,12 +173,14 @@ python3 cli.py demo                  # minimal run
 python3 cli.py demo divergent        # hidden degradation demo
 python3 cli.py demo failure          # visible failure demo
 python3 cli.py demo openai-wrapper   # minimal OpenAI-compatible wrapper demo
+python3 cli.py demo langgraph        # LangGraph-backed agent runtime demo
 python3 cli.py view                  # latest trace -> HTML
 python3 cli.py diff                  # latest two runs -> Markdown diff
 python3 cli.py explain               # generate both HTML + diff artifacts
 python3 cli.py baseline save good-run
 python3 cli.py baseline list
 python3 cli.py regression check good-run
+python3 cli.py bundle export
 ```
 
 The trace viewer now also highlights:
@@ -204,6 +219,7 @@ Current alpha prototype can already:
 - demonstrate both hidden degradation and visible failure scenarios
 - instrument agent runs with higher-level SDK helpers for spans, LLM calls, tool calls, and memory events
 - use a minimal OpenAI-compatible wrapper for lower-friction LLM tracing
+- trace a real LangGraph-backed agent runtime through LangChain's `create_agent`
 - save named baselines and generate regression reports against newer runs
 - support privacy-safe local tracing with optional redaction
 
@@ -272,14 +288,85 @@ This keeps the local JSONL event model explicit, while reducing repetitive boile
 
 ## OpenAI-compatible wrapper demo
 
-AgentLens now includes a minimal OpenAI-compatible wrapper example for lower-friction LLM tracing:
+AgentLens now includes a minimal wrapper that can either:
+- trace a simulated OpenAI-compatible call with no API dependency
+- trace a real OpenAI Responses API call when `OPENAI_API_KEY` is set
 
 ```bash
 python3 cli.py demo openai-wrapper
 python3 cli.py view
 ```
 
-The wrapper lives in `sdk/python/agentlens/openai_wrapper.py` and is intentionally tiny. The goal is not to be a full SDK replacement, but to show the smallest useful integration shape for tracing real LLM calls.
+For a real OpenAI call:
+
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://your-openai-compatible-host/v1
+export AGENTLENS_OPENAI_MODEL=gpt-5.2
+export AGENTLENS_OPENAI_API_STYLE=chat
+python3 -m pip install -e ".[openai]"
+python3 cli.py demo openai-wrapper
+```
+
+The wrapper lives in `sdk/python/agentlens/openai_wrapper.py` and is intentionally small. The goal is not to replace the OpenAI SDK, but to make real Responses API or Chat Completions calls traceable with very little glue code.
+
+```python
+from openai import OpenAI
+
+from agentlens import AgentLensClient, OpenAIResponsesTracer
+
+client = AgentLensClient(redact_sensitive=True)
+tracer = OpenAIResponsesTracer(client)
+sdk_client = OpenAI()
+run_id = client.new_run()
+
+client.emit(type='run.start', run_id=run_id, payload={'task': 'answer a user question'})
+
+response = tracer.trace_responses_create(
+    run_id=run_id,
+    client=sdk_client,
+    model='gpt-4.1-mini',
+    input='Should I jog tomorrow morning in Shanghai if rain is likely?',
+)
+
+client.emit(
+    type='run.end',
+    run_id=run_id,
+    payload={'final_answer': response.output_text},
+)
+```
+
+For OpenAI-compatible providers, initialize the SDK with `base_url=...` and choose the API shape your provider supports:
+- `AGENTLENS_OPENAI_API_STYLE=responses`
+- `AGENTLENS_OPENAI_API_STYLE=chat`
+
+## LangGraph runtime demo
+
+AgentLens now also includes a real agent runtime example built with LangChain's `create_agent`, which runs on LangGraph.
+
+Install the optional runtime dependencies:
+
+```bash
+python3 -m pip install -e ".[langgraph]"
+```
+
+Run the demo against an OpenAI-compatible provider:
+
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://your-openai-compatible-host/v1
+export AGENTLENS_OPENAI_MODEL=gpt-5.2
+python3 cli.py demo langgraph
+python3 cli.py view
+```
+
+The adapter lives in `sdk/python/agentlens/langgraph_adapter.py` and emits:
+- `run.start` / `run.end`
+- `llm.request` / `llm.response`
+- `tool.call` / `tool.result`
+- `error` when model or tool execution fails
+
+This gives AgentLens a path from toy demos into a real agent runtime that developers already use.
 
 ## Baselines and regression checks
 
@@ -295,6 +382,22 @@ python3 cli.py regression check good-run
 This writes a Markdown regression report that makes it easier to answer a higher-value debugging question:
 
 > Did the latest run get worse than the baseline, and where did it diverge?
+
+## Shareable debug bundles
+
+AgentLens can also export a shareable local bundle for a run:
+
+```bash
+python3 cli.py bundle export
+```
+
+That writes a zip file under `artifacts/bundles/` containing:
+- the raw JSONL trace
+- the rendered HTML trace viewer
+- a manifest with summary metadata
+- the latest diff report when a comparison run is available
+
+This is useful for bug reports, async teammate debugging, or preserving a regression case without sending your whole repo around.
 
 ## Privacy-safe tracing
 
@@ -323,7 +426,8 @@ Make agent systems debuggable, replayable, and trustworthy.
 - better divergence explanation wording
 - richer memory attribution
 - replay-oriented run inspection
-- framework adapters (starting with OpenAI SDK)
+- framework adapters beyond the built-in OpenAI SDK wrapper
+- stronger LangGraph and agent-runtime integrations
 
 
 ## Current limitations
@@ -334,6 +438,6 @@ Current limitations:
 - local-first only
 - no hosted service
 - no production-grade replay engine yet
-- no official OpenAI / LangGraph / AutoGen adapters yet
+- no LangGraph / AutoGen adapters yet
 - root-cause analysis is heuristic-based, not model-judged or formally verified
 - current UI is a minimal local HTML viewer, not a polished multi-page app

@@ -50,6 +50,8 @@ def test_openai_wrapper_handles_missing_usage_and_output(tmp_path: Path):
     records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
     assert records[-1]['payload']['finish_reason'] == 'stop'
     assert records[-1]['metrics']['total_tokens'] == 0
+    assert records[0]['type'] == 'llm.request'
+    assert len(records) == 2
 
 
 def test_load_baseline_raises_for_missing_saved_file(tmp_path: Path):

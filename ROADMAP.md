@@ -7,8 +7,8 @@ Goal: avoid building a vague 'AI platform'.
 - [x] project positioning
 - [x] MVP scope
 - [x] architecture draft
-- [ ] event schema v0
-- [ ] first example agent
+- [x] event schema v0
+- [x] first example agent
 
 ---
 
@@ -16,20 +16,20 @@ Goal: avoid building a vague 'AI platform'.
 Goal: make a single run visible end-to-end.
 
 ### Features
-- [ ] Python SDK: create trace / span / event
-- [ ] local JSONL storage
+- [x] Python SDK: create trace / span / event
+- [x] local JSONL storage
 - [ ] event types:
-  - [ ] run.start
-  - [ ] run.end
-  - [ ] llm.request
-  - [ ] llm.response
-  - [ ] tool.call
-  - [ ] tool.result
-  - [ ] memory.write
-  - [ ] memory.recall
-  - [ ] agent.decision
-  - [ ] error
-- [ ] basic run viewer
+  - [x] run.start
+  - [x] run.end
+  - [x] llm.request
+  - [x] llm.response
+  - [x] tool.call
+  - [x] tool.result
+  - [x] memory.write
+  - [x] memory.recall
+  - [x] agent.decision
+  - [x] error
+- [x] basic run viewer
 
 ### Success criteria
 - Can inspect one agent run from browser
@@ -41,11 +41,11 @@ Goal: make a single run visible end-to-end.
 Goal: explain where and why two runs diverged.
 
 ### Features
-- [ ] compare two runs side by side
+- [x] compare two runs in a divergence report
 - [ ] prompt diff
-- [ ] tool call diff
-- [ ] output diff
-- [ ] cost / latency diff
+- [x] tool call diff
+- [x] output diff
+- [x] cost / latency diff
 
 ### Success criteria
 - A user can answer: “why did this agent behave differently?”
@@ -56,11 +56,11 @@ Goal: explain where and why two runs diverged.
 Goal: make memory behavior inspectable.
 
 ### Features
-- [ ] memory write events
-- [ ] memory recall events
+- [x] memory write events
+- [x] memory recall events
 - [ ] recall hit visualization
-- [ ] stale / conflicting memory markers
-- [ ] memory influence panel
+- [x] stale / conflicting memory markers
+- [x] memory influence panel
 
 ### Success criteria
 - A user can answer: “which memory changed the outcome?”
@@ -71,17 +71,17 @@ Goal: make memory behavior inspectable.
 Goal: turn traces into engineering workflows.
 
 ### Features
-- [ ] save named test runs
-- [ ] compare new runs against baseline
-- [ ] regression warning rules
-- [ ] export trace bundle
+- [x] save named test runs
+- [x] compare new runs against baseline
+- [x] regression warning rules
+- [x] export trace bundle
 
 ---
 
 ## Phase 5 — Integrations
 ### Targets
-- [ ] OpenAI SDK wrapper
+- [x] OpenAI SDK wrapper
 - [ ] LiteLLM integration
-- [ ] LangGraph adapter
+- [x] LangGraph adapter
 - [ ] AutoGen adapter
 - [ ] OpenClaw example integration

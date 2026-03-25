@@ -110,6 +110,7 @@ class AgentLensClient:
         reason: Optional[str] = None,
         metrics: Optional[Dict[str, Any]] = None,
         parent_span_id: Optional[str] = None,
+        emit_response: bool = True,
     ) -> Dict[str, AgentLensEvent]:
         request = self.emit(
             type='llm.request',
@@ -129,13 +130,15 @@ class AgentLensClient:
             }.items()
             if value is not None
         }
-        response_event = self.emit(
-            type='llm.response',
-            run_id=run_id,
-            payload=response_payload,
-            metrics=metrics,
-            parent_span_id=request.span_id,
-        )
+        response_event = None
+        if emit_response:
+            response_event = self.emit(
+                type='llm.response',
+                run_id=run_id,
+                payload=response_payload,
+                metrics=metrics,
+                parent_span_id=request.span_id,
+            )
         return {'request': request, 'response': response_event}
 
     def record_tool_call(

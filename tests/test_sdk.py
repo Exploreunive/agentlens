@@ -132,7 +132,77 @@ def test_openai_wrapper_records_response_and_metrics(tmp_path: Path):
 
     assert response['finish_reason'] == 'stop'
     records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
-    assert [record['type'] for record in records] == ['llm.request', 'llm.response', 'llm.response']
+    assert [record['type'] for record in records] == ['llm.request', 'llm.response']
     assert records[0]['payload']['prompt'] == 'Contact me at [redacted_email] before answering'
-    assert records[2]['metrics']['total_tokens'] == 16
-    assert records[2]['payload']['finish_reason'] == 'stop'
+    assert records[1]['metrics']['total_tokens'] == 16
+    assert records[1]['payload']['finish_reason'] == 'stop'
+
+
+def test_openai_wrapper_normalizes_object_style_response(tmp_path: Path):
+    class Usage:
+        prompt_tokens = 7
+        completion_tokens = 5
+        total_tokens = 12
+
+    class Message:
+        content = 'Shanghai looks rainy tomorrow morning.'
+
+    class Choice:
+        message = Message()
+        finish_reason = 'stop'
+
+    class Response:
+        id = 'resp_123'
+        model = 'gpt-4.1-mini'
+        usage = Usage()
+        choices = [Choice()]
+
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage))
+    tracer = OpenAIResponsesTracer(client)
+    run_id = client.new_run()
+
+    result = tracer.trace_chat_completion(
+        run_id=run_id,
+        model='gpt-4.1-mini',
+        prompt='Should I jog tomorrow?',
+        call=lambda: Response(),
+    )
+
+    assert result.id == 'resp_123'
+    records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
+    assert records[-1]['payload']['response'] == 'Shanghai looks rainy tomorrow morning.'
+    assert records[-1]['payload']['response_id'] == 'resp_123'
+    assert records[-1]['metrics']['input_tokens'] == 7
+    assert records[-1]['metrics']['output_tokens'] == 5
+
+
+def test_openai_wrapper_supports_openai_responses_api_shape(tmp_path: Path):
+    class ResponsesAPI:
+        def create(self, **kwargs):
+            assert kwargs['model'] == 'gpt-4.1-mini'
+            assert kwargs['input'] == 'Give me a short answer'
+            return {
+                'id': 'resp_456',
+                'output_text': 'Short answer',
+                'usage': {'input_tokens': 4, 'output_tokens': 2, 'total_tokens': 6},
+            }
+
+    class FakeClient:
+        responses = ResponsesAPI()
+
+    storage = tmp_path / 'traces'
+    client = AgentLensClient(str(storage))
+    tracer = OpenAIResponsesTracer(client)
+    run_id = client.new_run()
+
+    result = tracer.trace_responses_create(
+        run_id=run_id,
+        client=FakeClient(),
+        model='gpt-4.1-mini',
+        input='Give me a short answer',
+    )
+
+    assert result['id'] == 'resp_456'
+    records = [json.loads(line) for line in next(storage.glob('*.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip()]
+    assert records[-1]['payload']['response'] == 'Short answer'

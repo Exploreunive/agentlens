@@ -7,14 +7,16 @@
 - [x] create minimal example agent
 - [x] generate first trace file
 - [x] add a basic HTML trace viewer
+- [x] add a divergence report
+- [x] add baseline / regression workflow
+- [x] add a minimal OpenAI SDK wrapper
 
 ## Next
-- [ ] failure summary generator
-- [ ] divergence summary generator
-- [ ] memory attribution heuristics
-- [ ] event filtering by type
-- [ ] explicit memory recall event support in example
-- [ ] OpenAI wrapper helper
+- [ ] make failure heuristics more evidence-driven
+- [ ] deepen the LangGraph adapter with richer state and memory tracing
+- [ ] improve viewer UX beyond a single HTML page
+- [ ] add replay-friendly fixture capture
+- [ ] publish screenshots / gifs for launch
 
 ## Open questions
 - Should artifacts live in SQLite or JSONL-first for longer?

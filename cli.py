@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bundle_export import export_bundle
 from regression import BASELINE_DIR, build_regression_report, list_traces, load_baseline, save_baseline, summarize_regression, load_trace
 
 ROOT = Path(__file__).resolve().parent
@@ -20,6 +21,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
         'divergent': 'examples/divergent_agent.py',
         'failure': 'examples/failure_answer_agent.py',
         'openai-wrapper': 'examples/openai_wrapper_demo.py',
+        'langgraph': 'examples/langgraph_agent_demo.py',
     }
     return _run(demo_map[args.scenario])
 
@@ -76,6 +78,12 @@ def cmd_regression_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bundle_export(args: argparse.Namespace) -> int:
+    out = export_bundle(args.trace, include_diff=not args.no_diff)
+    print(f'Wrote {out}')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -88,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
         'scenario',
         nargs='?',
         default='minimal',
-        choices=['minimal', 'divergent', 'failure', 'openai-wrapper'],
+        choices=['minimal', 'divergent', 'failure', 'openai-wrapper', 'langgraph'],
         help='which built-in scenario to run (default: minimal)',
     )
     p_demo.set_defaults(func=cmd_demo)
@@ -121,6 +129,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_regression_check = regression_sub.add_parser('check', help='write a regression report for the latest candidate run')
     p_regression_check.add_argument('name', help='saved baseline name')
     p_regression_check.set_defaults(func=cmd_regression_check)
+
+    p_bundle = sub.add_parser('bundle', help='export a shareable bundle for a trace run')
+    bundle_sub = p_bundle.add_subparsers(dest='bundle_command', required=True)
+
+    p_bundle_export = bundle_sub.add_parser('export', help='write a zip bundle with trace, html view, and optional diff')
+    p_bundle_export.add_argument('trace', nargs='?', default='latest', help='trace file, trace stem, or `latest`')
+    p_bundle_export.add_argument('--no-diff', action='store_true', help='skip adding a divergence report to the bundle')
+    p_bundle_export.set_defaults(func=cmd_bundle_export)
 
     return parser
 

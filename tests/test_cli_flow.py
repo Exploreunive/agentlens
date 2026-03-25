@@ -78,3 +78,15 @@ def test_cli_supports_baseline_and_regression_workflow(tmp_path: Path):
     assert 'regression_detected' in text
     assert 'baseline: `golden-run`' in text
     assert 'candidate:' in text
+
+
+def test_cli_supports_bundle_export(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'minimal'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    bundle = subprocess.run([sys.executable, 'cli.py', 'bundle', 'export'], cwd=work, capture_output=True, text=True)
+    assert bundle.returncode == 0, bundle.stderr
+    assert 'artifacts/bundles' in bundle.stdout
