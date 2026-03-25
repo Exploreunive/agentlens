@@ -5,7 +5,7 @@
 AgentLens is a **local-first debugger for LLM agents**.
 It is built for the moment when a trace tells you what happened, but not **where the run actually started going wrong**.
 
-![AgentLens LangGraph Trace Hero](docs/assets/langgraph-trace-hero.svg)
+![AgentLens LangGraph Trace Viewer Screenshot](docs/assets/langgraph-trace-real.png)
 
 The screenshot above is based on a real LangGraph-backed demo run traced by AgentLens:
 - the model decides to call `weather_snapshot`

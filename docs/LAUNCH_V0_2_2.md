@@ -71,5 +71,5 @@ Show HN: AgentLens — explain why your LangGraph agent failed
 ## Suggested screenshot pairing
 
 Use:
-- `docs/assets/langgraph-trace-hero.svg` as the README hero
-- `artifacts/latest_trace.html` screenshot for a more literal product shot
+- `docs/assets/langgraph-trace-real.png` as the README hero
+- `docs/assets/langgraph-trace-hero.svg` as an optional stylized social card
