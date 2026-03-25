@@ -3,20 +3,44 @@
 **Explain why your agent failed.**
 
 AgentLens is a **local-first debugger for LLM agents**.
-It helps you go beyond “here’s the trace” and answer a more useful question:
+It is built for the moment when a trace tells you what happened, but not **where the run actually started going wrong**.
 
-> **Where did the run actually start going wrong?**
+![AgentLens LangGraph Trace Hero](docs/assets/langgraph-trace-hero.svg)
 
-AgentLens focuses on:
+The screenshot above is based on a real LangGraph-backed demo run traced by AgentLens:
+- the model decides to call `weather_snapshot`
+- the tool returns fresh evidence: `Shanghai: rain`
+- the final answer updates to match the tool result
 
-1. **Failure explanation** — where the run likely went wrong
-2. **Memory attribution** — which memory influenced the outcome
-3. **Run divergence** — where run B started behaving differently from run A
+That is the core product idea:
+- **failure explanation** — where the run likely went wrong
+- **tool and memory evidence** — what influenced the outcome
+- **run divergence** — where run B started behaving differently from run A
 
 Most tools help you log traces.
 AgentLens is being built to help you answer the harder question:
 
 > Why did this agent make the wrong decision?
+
+## Demo Snapshot
+
+The latest alpha can already trace a real LangGraph runtime and render it into a debugging view that surfaces:
+- runtime overview
+- model turns
+- tool evidence
+- final answer
+- failure chain and suspicious signals when they exist
+
+To reproduce the LangGraph demo:
+
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://your-openai-compatible-host/v1
+export AGENTLENS_OPENAI_MODEL=gpt-5.2
+python3 -m pip install -e ".[langgraph]"
+python3 cli.py demo langgraph
+python3 cli.py view
+```
 
 ## Why AgentLens
 

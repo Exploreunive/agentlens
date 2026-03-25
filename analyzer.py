@@ -39,22 +39,30 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         'likely_failure_point': None,
         'memory_influence': [],
         'tool_sequence': [],
+        'tool_evidence': [],
+        'model_turns': [],
         'suspicious_signals': [],
         'notes': [],
         'failure_mode': 'no_explicit_failure',
         'failure_chain': [],
         'confidence': 'low',
         'evidence_summary': [],
+        'runtime': 'unknown',
+        'agent_name': None,
     }
 
-    tool_results_by_call = _tool_result_by_call_span(events)
     latest_recall: Optional[Dict[str, Any]] = None
     latest_tool_result: Optional[Dict[str, Any]] = None
     latest_decision: Optional[Dict[str, Any]] = None
+    tool_calls_by_id: Dict[str, Dict[str, Any]] = {}
 
     for idx, e in enumerate(events):
         et = e.get('type')
         payload = e.get('payload') or {}
+
+        if et == 'run.start':
+            summary['runtime'] = payload.get('runtime', summary['runtime'])
+            summary['agent_name'] = payload.get('agent_name', summary['agent_name'])
 
         if et == 'agent.decision':
             latest_decision = {
@@ -62,9 +70,15 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'name': payload.get('name'),
                 'payload': payload,
             }
+            summary['model_turns'].append({
+                'event_index': idx,
+                'kind': 'agent_decision',
+                'summary': payload.get('name') or 'agent decision',
+            })
 
         if et == 'tool.call':
             tool_name = payload.get('tool_name')
+            tool_call_id = payload.get('tool_call_id')
             if tool_name:
                 summary['tool_sequence'].append(tool_name)
                 summary['failure_chain'].append({
@@ -72,12 +86,26 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                     'kind': 'tool_call',
                     'label': f'tool call: {tool_name}',
                 })
+                if tool_call_id:
+                    tool_calls_by_id[tool_call_id] = {
+                        'tool_name': tool_name,
+                        'args': payload.get('args', {}),
+                        'event_index': idx,
+                    }
 
         if et == 'tool.result':
             latest_tool_result = {
                 'event_index': idx,
                 'payload': payload,
             }
+            tool_call_id = payload.get('tool_call_id')
+            tool_name = tool_calls_by_id.get(tool_call_id, {}).get('tool_name')
+            result_content = payload.get('content') or payload
+            summary['tool_evidence'].append({
+                'event_index': idx,
+                'tool_name': tool_name or 'unknown_tool',
+                'content': result_content,
+            })
 
         if et == 'memory.write':
             content = payload.get('content')
@@ -108,6 +136,24 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                     'event_index': idx,
                     'kind': 'memory_recall',
                     'label': f'memory recall: {content}',
+                })
+
+        if et == 'llm.response':
+            response_text = payload.get('response')
+            tool_calls = payload.get('tool_calls') or []
+            turn_summary = response_text or payload.get('decision') or 'llm response'
+            summary['model_turns'].append({
+                'event_index': idx,
+                'kind': 'llm_response',
+                'summary': turn_summary,
+                'tool_calls': tool_calls,
+            })
+            if tool_calls:
+                tool_names = ', '.join(call.get('name', 'unknown_tool') for call in tool_calls)
+                summary['failure_chain'].append({
+                    'event_index': idx,
+                    'kind': 'model_tool_choice',
+                    'label': f'model selected tool(s): {tool_names}',
                 })
 
         if et == 'error':
@@ -171,6 +217,13 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         recall_events = [m for m in summary['memory_influence'] if m['kind'] == 'recall']
         if recall_events:
             summary['notes'].append('Memory recall occurred; verify whether recalled memory was relevant.')
+        if summary['runtime'] == 'langgraph':
+            summary['notes'].append('Inspect model/tool handoff across LangGraph turns to see where reasoning changed.')
+        if summary['tool_evidence']:
+            first_tool = summary['tool_evidence'][0]
+            summary['notes'].append(
+                f"Fresh tool evidence from {first_tool['tool_name']} is available; compare it against the final answer."
+            )
         if summary['tool_sequence']:
             summary['notes'].append('Inspect tool outputs if final answer quality looks wrong.')
         if not summary['notes']:

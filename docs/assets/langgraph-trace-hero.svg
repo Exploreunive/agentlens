@@ -1,0 +1,75 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="40" x2="1470" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111f"/>
+      <stop offset="1" stop-color="#0f1d34"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="320" y1="180" x2="1350" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13233c"/>
+      <stop offset="1" stop-color="#0d1728"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="420" y1="270" x2="1210" y2="770" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58d1ff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#7be495" stop-opacity="0.06"/>
+    </linearGradient>
+    <filter id="shadow" x="220" y="120" width="1180" height="770" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="36" flood-color="#02060d" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="980" rx="32" fill="url(#bg)"/>
+  <circle cx="1380" cy="140" r="240" fill="#58D1FF" fill-opacity="0.07"/>
+  <circle cx="190" cy="820" r="220" fill="#7BE495" fill-opacity="0.05"/>
+
+  <g filter="url(#shadow)">
+    <rect x="260" y="150" width="1080" height="690" rx="30" fill="url(#panel)" stroke="#29405f" stroke-width="1.5"/>
+    <rect x="260" y="150" width="1080" height="690" rx="30" fill="url(#accent)"/>
+  </g>
+
+  <text x="120" y="118" fill="#F4F7FB" font-family="SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700">AgentLens</text>
+  <text x="120" y="156" fill="#9BB0C9" font-family="SFMono-Regular, Menlo, monospace" font-size="18">Real LangGraph runtime trace with model turns, tool evidence, and final answer.</text>
+
+  <text x="320" y="220" fill="#F5F8FC" font-family="SFMono-Regular, Menlo, monospace" font-size="34" font-weight="700">LangGraph Run Overview</text>
+  <text x="320" y="255" fill="#8EA4C0" font-family="SFMono-Regular, Menlo, monospace" font-size="18">runtime=langgraph   agent=langgraph_weather_agent   model=gpt-5.2</text>
+
+  <rect x="320" y="295" width="300" height="118" rx="18" fill="#0B1525" stroke="#21344E"/>
+  <text x="345" y="332" fill="#88A2C0" font-family="SFMono-Regular, Menlo, monospace" font-size="15">FIRST MODEL TURN</text>
+  <text x="345" y="370" fill="#F2F6FA" font-family="SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700">tool_calls=weather_snapshot</text>
+  <text x="345" y="397" fill="#70C9FF" font-family="SFMono-Regular, Menlo, monospace" font-size="16">finish_reason=tool_calls</text>
+
+  <rect x="640" y="295" width="300" height="118" rx="18" fill="#0B1525" stroke="#21344E"/>
+  <text x="665" y="332" fill="#88A2C0" font-family="SFMono-Regular, Menlo, monospace" font-size="15">TOOL EVIDENCE</text>
+  <text x="665" y="370" fill="#F2F6FA" font-family="SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700">weather_snapshot</text>
+  <text x="665" y="397" fill="#7BE495" font-family="SFMono-Regular, Menlo, monospace" font-size="16">Shanghai: rain</text>
+
+  <rect x="960" y="295" width="320" height="118" rx="18" fill="#0B1525" stroke="#21344E"/>
+  <text x="985" y="332" fill="#88A2C0" font-family="SFMono-Regular, Menlo, monospace" font-size="15">FINAL ANSWER</text>
+  <text x="985" y="370" fill="#F2F6FA" font-family="SFMono-Regular, Menlo, monospace" font-size="20" font-weight="700">Probably not ideal for an outdoor jog</text>
+  <text x="985" y="397" fill="#9FD3FF" font-family="SFMono-Regular, Menlo, monospace" font-size="16">answer grounded in fresh tool evidence</text>
+
+  <rect x="320" y="455" width="960" height="320" rx="22" fill="#09111E" stroke="#21344E"/>
+  <text x="350" y="495" fill="#F4F7FB" font-family="SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700">Trace Timeline</text>
+
+  <g>
+    <rect x="350" y="530" width="900" height="48" rx="14" fill="#101A2D"/>
+    <circle cx="377" cy="554" r="6" fill="#7CC4FF"/>
+    <text x="395" y="560" fill="#DCE7F3" font-family="SFMono-Regular, Menlo, monospace" font-size="17">llm.request   "Should I jog tomorrow morning in Shanghai?"</text>
+  </g>
+  <g>
+    <rect x="350" y="590" width="900" height="48" rx="14" fill="#112032"/>
+    <circle cx="377" cy="614" r="6" fill="#58D1FF"/>
+    <text x="395" y="620" fill="#DCE7F3" font-family="SFMono-Regular, Menlo, monospace" font-size="17">llm.response  tool_calls=weather_snapshot   finish_reason=tool_calls</text>
+  </g>
+  <g>
+    <rect x="350" y="650" width="900" height="48" rx="14" fill="#12251F"/>
+    <circle cx="377" cy="674" r="6" fill="#7BE495"/>
+    <text x="395" y="680" fill="#DCE7F3" font-family="SFMono-Regular, Menlo, monospace" font-size="17">tool.result   weather_snapshot -&gt; "Shanghai: rain"</text>
+  </g>
+  <g>
+    <rect x="350" y="710" width="900" height="48" rx="14" fill="#101A2D"/>
+    <circle cx="377" cy="734" r="6" fill="#9FD3FF"/>
+    <text x="395" y="740" fill="#DCE7F3" font-family="SFMono-Regular, Menlo, monospace" font-size="17">llm.response  "Probably not ideal for an outdoor jog tomorrow morning..."</text>
+  </g>
+
+  <text x="120" y="906" fill="#87A0BE" font-family="SFMono-Regular, Menlo, monospace" font-size="16">Built from a real AgentLens LangGraph demo trace using an OpenAI-compatible provider.</text>
+</svg>

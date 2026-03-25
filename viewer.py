@@ -48,23 +48,14 @@ def load_latest_trace() -> List[Dict[str, Any]]:
     if not files:
         raise SystemExit('No trace files found in .agentlens/traces')
 
-    parsed = []
-    for trace_file in files:
-        events = []
-        with trace_file.open('r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                events.append(json.loads(line))
-        parsed.append((trace_file, events))
-
-    # Prefer the most recent run that already contains suspicious/error signals.
-    for _, events in parsed:
-        if any(e.get('type') == 'error' for e in events):
-            return events
-
-    return parsed[0][1]
+    events = []
+    with files[0].open('r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            events.append(json.loads(line))
+    return events
 
 
 def find_first_suspicious_index(events: List[Dict[str, Any]]) -> Optional[int]:
@@ -126,6 +117,11 @@ def build_filter_controls(event_counts: Dict[str, int]) -> str:
     return ''.join(items)
 
 
+def _truncate(value: Any, limit: int = 160) -> str:
+    text = str(value)
+    return text if len(text) <= limit else text[: limit - 1] + '…'
+
+
 def build_html(events: List[Dict[str, Any]]) -> str:
     run_id = html.escape(events[0].get('run_id', 'unknown')) if events else 'unknown'
     summary = summarize_run(events)
@@ -147,6 +143,14 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     suspicious_items = ''.join(
         f"<li>{html.escape(str(s.get('type')))}: {html.escape(str(s.get('reason')))}</li>" for s in summary.get('suspicious_signals', [])
     ) or '<li>No suspicious signals detected</li>'
+    tool_evidence_items = ''.join(
+        f"<li>#{html.escape(str(item.get('event_index')))} · {html.escape(str(item.get('tool_name')))} · {html.escape(_truncate(item.get('content')))}</li>"
+        for item in summary.get('tool_evidence', [])
+    ) or '<li>No tool evidence captured</li>'
+    model_turn_items = ''.join(
+        f"<li>#{html.escape(str(item.get('event_index')))} · {html.escape(str(item.get('kind')))} · {html.escape(_truncate(item.get('summary')))}</li>"
+        for item in summary.get('model_turns', [])
+    ) or '<li>No model turns recorded</li>'
     evidence_items = ''.join(f'<li>{html.escape(str(e))}</li>' for e in card.get('evidence', []))
     inspect_items = ''.join(f'<li>{html.escape(str(i))}</li>' for i in card.get('inspect_next', []))
     chain_items = ''.join(
@@ -163,6 +167,8 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     likely_failure_text = (
         f'Event #{failure_index}' if failure_index is not None else 'No failure step detected'
     )
+    runtime_label = html.escape(str(summary.get('runtime') or 'unknown'))
+    agent_name = html.escape(str(summary.get('agent_name') or 'unknown'))
     return f'''<!doctype html>
 <html>
 <head>
@@ -194,6 +200,7 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     .stat-label {{ color:#98a2b3; font-size:12px; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em; }}
     .stat-value {{ font-size:24px; font-weight:700; color:#f8fafc; }}
     .trace-controls {{ display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin:0 0 18px; }}
+    .overview {{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:0 0 18px; }}
     .panel {{ background:#121a2b; border:1px solid #283043; border-radius:14px; padding:14px; }}
     .summary-line {{ color:#d6deeb; margin-top:10px; font-size:14px; }}
     .filter-row {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }}
@@ -203,6 +210,9 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     li {{ margin:4px 0; }}
     pre {{ white-space:pre-wrap; word-break:break-word; background:#0d1422; border-radius:10px; padding:12px; overflow:auto; }}
     .hidden {{ display:none; }}
+    @media (max-width: 900px) {{
+      .stats, .trace-controls, .overview, .cols {{ grid-template-columns:1fr; }}
+    }}
   </style>
 </head>
 <body>
@@ -235,6 +245,22 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     <div class="panel">
       <h2>event filters</h2>
       <div class="filter-row">{filter_controls}</div>
+    </div>
+  </div>
+  <div class="overview">
+    <div class="panel">
+      <h2>runtime overview</h2>
+      <div class="summary-line">runtime: <strong>{runtime_label}</strong></div>
+      <div class="summary-line">agent: <strong>{agent_name}</strong></div>
+      <div class="summary-line">events: <strong>{len(events)}</strong></div>
+    </div>
+    <div class="panel">
+      <h2>model turns</h2>
+      <ul>{model_turn_items}</ul>
+    </div>
+    <div class="panel">
+      <h2>tool evidence</h2>
+      <ul>{tool_evidence_items}</ul>
     </div>
   </div>
   <div class="event">

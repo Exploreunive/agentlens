@@ -64,3 +64,21 @@ def test_summarize_divergence_emits_timeline_and_count():
     assert len(d['divergence_timeline']) == 2
     assert d['divergence_timeline'][0]['difference_kind'] == 'payload_mismatch'
     assert d['severity'] == 'high'
+
+
+def test_summarize_run_extracts_langgraph_tool_evidence_and_turns():
+    events = [
+        {'type': 'run.start', 'payload': {'runtime': 'langgraph', 'agent_name': 'weather_agent'}},
+        {'type': 'llm.request', 'payload': {'model': 'gpt-5.2', 'prompt': 'Should I jog?'}},
+        {'type': 'llm.response', 'payload': {'tool_calls': [{'name': 'weather_snapshot', 'id': 'call_1', 'args': {'city': 'Shanghai'}}], 'decision': 'tool_calls=weather_snapshot'}},
+        {'type': 'tool.call', 'payload': {'tool_name': 'weather_snapshot', 'tool_call_id': 'call_1', 'args': {'city': 'Shanghai'}}},
+        {'type': 'tool.result', 'payload': {'tool_call_id': 'call_1', 'content': 'Shanghai: rain'}},
+        {'type': 'llm.response', 'payload': {'response': 'Skip the jog.'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'Skip the jog.'}},
+    ]
+    summary = summarize_run(events)
+    assert summary['runtime'] == 'langgraph'
+    assert summary['agent_name'] == 'weather_agent'
+    assert summary['tool_evidence'][0]['tool_name'] == 'weather_snapshot'
+    assert summary['tool_evidence'][0]['content'] == 'Shanghai: rain'
+    assert any(turn['kind'] == 'llm_response' for turn in summary['model_turns'])
