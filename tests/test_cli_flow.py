@@ -173,3 +173,20 @@ def test_cli_supports_benchmark_report(tmp_path: Path):
     assert md_file.exists()
     assert html_file.exists()
     assert 'AgentLens Benchmark Coverage Report' in md_file.read_text(encoding='utf-8')
+
+
+def test_cli_supports_benchmark_baseline_and_check(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    save = subprocess.run([sys.executable, 'cli.py', 'bench', 'baseline', 'save', 'golden'], cwd=work, capture_output=True, text=True)
+    assert save.returncode == 0, save.stderr
+    assert 'Saved benchmark baseline golden' in save.stdout
+
+    check = subprocess.run([sys.executable, 'cli.py', 'bench', 'check', 'golden'], cwd=work, capture_output=True, text=True)
+    assert check.returncode == 0, check.stderr
+    assert 'benchmark_regression.md' in check.stdout
+
+    regression_file = work / 'artifacts' / 'benchmark_regression.md'
+    assert regression_file.exists()
+    assert 'AgentLens Benchmark Regression Report' in regression_file.read_text(encoding='utf-8')

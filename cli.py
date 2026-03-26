@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from benchmark_report import write_benchmark_report
+from benchmark_report import save_benchmark_baseline, write_benchmark_regression_report, write_benchmark_report
 from bundle_export import export_bundle
 from debug_inbox import write_debug_inbox, write_debug_inbox_html
 from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
@@ -101,6 +101,18 @@ def cmd_bench_report(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench_baseline_save(args: argparse.Namespace) -> int:
+    out = save_benchmark_baseline(args.name)
+    print(f'Saved benchmark baseline {args.name} -> {out}')
+    return 0
+
+
+def cmd_bench_check(args: argparse.Namespace) -> int:
+    out = write_benchmark_regression_report(args.name)
+    print(f'Wrote {out}')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -165,6 +177,14 @@ def build_parser() -> argparse.ArgumentParser:
     bench_sub = p_bench.add_subparsers(dest='bench_command', required=True)
     p_bench_report = bench_sub.add_parser('report', help='render benchmark fixture coverage reports')
     p_bench_report.set_defaults(func=cmd_bench_report)
+    p_bench_baseline = bench_sub.add_parser('baseline', help='manage benchmark coverage baselines')
+    bench_baseline_sub = p_bench_baseline.add_subparsers(dest='bench_baseline_command', required=True)
+    p_bench_baseline_save = bench_baseline_sub.add_parser('save', help='save the current benchmark coverage as a baseline')
+    p_bench_baseline_save.add_argument('name', help='benchmark baseline name')
+    p_bench_baseline_save.set_defaults(func=cmd_bench_baseline_save)
+    p_bench_check = bench_sub.add_parser('check', help='compare current benchmark coverage to a saved baseline')
+    p_bench_check.add_argument('name', help='saved benchmark baseline name')
+    p_bench_check.set_defaults(func=cmd_bench_check)
 
     return parser
 

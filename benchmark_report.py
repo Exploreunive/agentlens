@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ from regression import load_trace
 FIXTURES_DIR = Path('tests/fixtures/benchmarks')
 OUT_MD = Path('artifacts/benchmark_report.md')
 OUT_HTML = Path('artifacts/benchmark_report.html')
+BASELINE_DIR = Path('.agentlens/benchmark_baselines')
+REGRESSION_MD = Path('artifacts/benchmark_regression.md')
 
 EXPECTATIONS = {
     'clarification_failure.jsonl': {
@@ -204,3 +207,52 @@ def write_benchmark_report() -> tuple[Path, Path]:
     OUT_MD.write_text(build_benchmark_report(items), encoding='utf-8')
     OUT_HTML.write_text(build_benchmark_report_html(items), encoding='utf-8')
     return OUT_MD, OUT_HTML
+
+
+def save_benchmark_baseline(name: str) -> Path:
+    items = collect_benchmark_cases()
+    BASELINE_DIR.mkdir(parents=True, exist_ok=True)
+    out = BASELINE_DIR / f'{name}.json'
+    out.write_text(json.dumps(items, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    return out
+
+
+def load_benchmark_baseline(name: str) -> list[dict[str, Any]]:
+    path = BASELINE_DIR / f'{name}.json'
+    if not path.exists():
+        raise SystemExit(f'Benchmark baseline not found: {name}')
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def build_benchmark_regression_report(baseline_name: str, baseline_items: list[dict[str, Any]], current_items: list[dict[str, Any]]) -> str:
+    baseline_by_fixture = {item['fixture']: item for item in baseline_items}
+    current_by_fixture = {item['fixture']: item for item in current_items}
+    lines = ['# AgentLens Benchmark Regression Report', '']
+    regressions = 0
+    for fixture in sorted(set(baseline_by_fixture) | set(current_by_fixture)):
+        before = baseline_by_fixture.get(fixture, {})
+        after = current_by_fixture.get(fixture, {})
+        before_status = before.get('coverage_status', 'missing')
+        after_status = after.get('coverage_status', 'missing')
+        if before_status == 'matched' and after_status != 'matched':
+            regressions += 1
+        lines.append(f"## `{fixture}`")
+        lines.append(f"- baseline: `{baseline_name}`")
+        lines.append(f"- coverage_before: `{before_status}`")
+        lines.append(f"- coverage_after: `{after_status}`")
+        lines.append(f"- fingerprint_before: `{before.get('fingerprint')}`")
+        lines.append(f"- fingerprint_after: `{after.get('fingerprint')}`")
+        lines.append('')
+    lines.insert(2, f'- regressions: `{regressions}`')
+    return '\n'.join(lines)
+
+
+def write_benchmark_regression_report(name: str) -> Path:
+    baseline_items = load_benchmark_baseline(name)
+    current_items = collect_benchmark_cases()
+    REGRESSION_MD.parent.mkdir(parents=True, exist_ok=True)
+    REGRESSION_MD.write_text(
+        build_benchmark_regression_report(name, baseline_items, current_items),
+        encoding='utf-8',
+    )
+    return REGRESSION_MD

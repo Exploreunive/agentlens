@@ -221,6 +221,8 @@ python3 cli.py bundle export
 python3 cli.py inbox                 # rank recent traces into a debug inbox
 python3 cli.py inbox --baseline good-run
 python3 cli.py bench report          # render benchmark-inspired coverage artifacts
+python3 cli.py bench baseline save golden-bench
+python3 cli.py bench check golden-bench
 ```
 
 When inbox runs with baseline watch enabled, it also prepares:
