@@ -236,6 +236,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - case ownership and next-step metadata so the board becomes a working incident queue
 - recurring issue leaderboard with regressions, unresolved count, and average priority
 - an action queue that lifts unresolved baseline regressions to the top
+- focus views for unresolved regressions, in-progress incidents, and unassigned high-priority cases
 
 The trace viewer now also highlights:
 - the **first suspicious step**

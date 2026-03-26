@@ -158,6 +158,8 @@ def test_build_case_board_html_contains_summary_cards():
     )
     assert 'AgentLens Incident Board' in html
     assert 'Action Queue' in html
+    assert 'Focus Views' in html
+    assert 'Owner Load' in html
     assert 'Recurring Issue Leaderboard' in html
     assert 'Trend Watch' in html
     assert 'Benchmark Gate' in html
@@ -170,6 +172,9 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'baseline regression' in html
     assert 'owner alice' in html
     assert 'Replay the wrong tool selection.' in html
+    assert 'Unresolved Regressions' in html
+    assert 'Investigating Now' in html
+    assert 'Unassigned High Priority' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -298,3 +303,40 @@ def test_build_case_board_html_marks_rising_fingerprint():
     assert 'coverage matched -&gt; partial' not in html
     assert 'coverage matched -> partial' in html
     assert 'recent-a.jsonl' in html
+    assert 'Owner Load' in html
+    assert 'alice' in html
+    assert 'bob' in html
+
+
+def test_build_case_board_html_surfaces_unassigned_high_priority_focus():
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 92,
+                'priority_level': 'high',
+                'failure_mode': 'wrong_tool_selected',
+                'failure_fingerprint': {'label': 'wrong-tool-selected', 'id': 'a'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'done',
+                'regression_detected': False,
+                'case_status': 'new',
+                'case_owner': 'unassigned',
+                'case_next_step': 'Assign someone.',
+                'case_index_path': 'artifacts/cases/run-a/README.md',
+                'trace_view_path': 'artifacts/views/run-a.html',
+                'regression_report_path': None,
+            }
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 5, 'partial': 0, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 0,
+            'regressed_fixtures': [],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
+        },
+    )
+    assert 'Unassigned High Priority' in html
+    assert '>1<' in html

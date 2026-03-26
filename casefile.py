@@ -177,6 +177,17 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     unresolved_items = [
         item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'}
     ]
+    unresolved_regressions = [
+        item for item in unresolved_items if item.get('regression_detected')
+    ]
+    investigating_items = [
+        item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) == 'investigating'
+    ]
+    unassigned_high_priority = [
+        item
+        for item in unresolved_items
+        if (item.get('case_owner') or DEFAULT_CASE_OWNER) == DEFAULT_CASE_OWNER and item.get('priority_level') == 'high'
+    ]
     action_queue = sorted(
         unresolved_items,
         key=lambda item: (
@@ -257,6 +268,17 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         '''
         for label, recent_count, older_count, _delta, direction in trend_rows[:6]
     ) or '<div class="empty">No trend data yet.</div>'
+    owner_rows = Counter((item.get('case_owner') or DEFAULT_CASE_OWNER) for item in items)
+    owner_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">Owner Load</div>
+          <div class="mini-value">{html.escape(str(owner))}</div>
+          <div class="mini-meta">cases {count}</div>
+        </div>
+        '''
+        for owner, count in sorted(owner_rows.items(), key=lambda row: (-row[1], row[0]))[:6]
+    ) or '<div class="empty">No owners assigned yet.</div>'
     gate = benchmark_gate or {}
     coverage = gate.get('coverage') or {}
     regressed_fixtures = gate.get('regressed_fixtures') or []
@@ -272,6 +294,32 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     )
     if not gate_cards:
         gate_cards = '<div class="empty">No benchmark regressions currently detected.</div>'
+    focus_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">{html.escape(str(view["label"]))}</div>
+          <div class="mini-value">{view["count"]}</div>
+          <div class="mini-meta">{html.escape(str(view["description"]))}</div>
+        </div>
+        '''
+        for view in [
+            {
+                'label': 'Unresolved Regressions',
+                'count': len(unresolved_regressions),
+                'description': 'Runs still open and already worse than baseline.',
+            },
+            {
+                'label': 'Investigating Now',
+                'count': len(investigating_items),
+                'description': 'Cases currently owned and in active debugging.',
+            },
+            {
+                'label': 'Unassigned High Priority',
+                'count': len(unassigned_high_priority),
+                'description': 'High-risk incidents with no explicit owner yet.',
+            },
+        ]
+    )
     queue_cards = ''.join(
         f'''
         <div class="mini-card">
@@ -346,6 +394,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     .stat-value {{ margin-top: 8px; font-size: 28px; font-weight: 800; }}
     .layout {{ display: grid; grid-template-columns: 1.1fr 1.1fr 1.8fr; gap: 16px; }}
     .queue-layout {{ display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0 0 16px; }}
+    .focus-layout {{ display: grid; grid-template-columns: 1.4fr 1.6fr; gap: 16px; margin: 0 0 16px; }}
     .gate-layout {{ display: grid; grid-template-columns: 1.1fr 2.9fr; gap: 16px; margin-top: 16px; }}
     .section {{ padding: 18px; }}
     .mini-grid {{ display: grid; gap: 12px; }}
@@ -368,7 +417,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     .level-low .score {{ border-color: rgba(109, 211, 160, 0.55); }}
     .empty {{ color: var(--muted); }}
     @media (max-width: 900px) {{
-      .stats, .layout, .queue-layout, .gate-layout {{ grid-template-columns: 1fr; }}
+      .stats, .layout, .queue-layout, .focus-layout, .gate-layout {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -391,6 +440,18 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         <h2>Action Queue</h2>
         <p>Start here when you only have time to fix the next few incidents. Baseline regressions rise to the top automatically.</p>
         <div class="mini-grid">{queue_cards}</div>
+      </div>
+    </section>
+    <section class="focus-layout">
+      <div class="section">
+        <h2>Focus Views</h2>
+        <p>Use these counts to decide whether the team should regression-triage, pick up unassigned work, or finish what is already in progress.</p>
+        <div class="mini-grid">{focus_cards}</div>
+      </div>
+      <div class="section">
+        <h2>Owner Load</h2>
+        <p>Simple owner-centric slice so you can spot uneven incident load without opening every case file.</p>
+        <div class="mini-grid">{owner_cards}</div>
       </div>
     </section>
     <section class="layout">
