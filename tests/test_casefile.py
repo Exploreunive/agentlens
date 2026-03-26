@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from casefile import build_case_board_html, write_case_board, write_case_index
+from casefile import build_case_board_html, parse_case_status, write_case_board, write_case_index
 
 
 def test_write_case_index_creates_shareable_readme(tmp_path: Path):
@@ -35,8 +35,10 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
     assert out == Path('artifacts/cases/demo/README.md')
     text = (tmp_path / out).read_text(encoding='utf-8')
     assert 'AgentLens Case File' in text
+    assert '- status: `new`' in text
     assert 'artifacts/views/demo.html' in text
     assert 'artifacts/regressions/golden__demo.md' in text
+    assert parse_case_status(tmp_path / out) == 'new'
 
 
 def test_build_case_board_html_contains_summary_cards():
@@ -51,6 +53,7 @@ def test_build_case_board_html_contains_summary_cards():
             'answer_risk': 'hidden_degradation',
             'final_answer': 'Jog is fine.',
             'regression_detected': True,
+            'case_status': 'investigating',
             'case_index_path': 'artifacts/cases/run-a/README.md',
             'trace_view_path': 'artifacts/views/run-a.html',
             'regression_report_path': 'artifacts/regressions/golden__run-a.md',
@@ -60,6 +63,7 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'Recurring Failure Modes' in html
     assert 'Trend Watch' in html
     assert 'memory-vs-tool-conflict' in html
+    assert 'status mix: investigating=1' in html.lower()
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -78,6 +82,7 @@ def test_write_case_board_creates_index(tmp_path: Path):
                 'answer_risk': 'hidden_degradation',
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,
+                'case_status': 'new',
                 'case_index_path': 'artifacts/cases/run-a/README.md',
                 'trace_view_path': 'artifacts/views/run-a.html',
                 'regression_report_path': 'artifacts/regressions/golden__run-a.md',
@@ -102,6 +107,7 @@ def test_build_case_board_html_marks_rising_fingerprint():
             'answer_risk': 'hidden_degradation',
             'final_answer': 'Jog is fine.',
             'regression_detected': True,
+            'case_status': 'new',
             'case_index_path': 'artifacts/cases/recent-a/README.md',
             'trace_view_path': 'artifacts/views/recent-a.html',
             'regression_report_path': 'artifacts/regressions/golden__recent-a.md',
@@ -116,6 +122,7 @@ def test_build_case_board_html_marks_rising_fingerprint():
             'answer_risk': 'hidden_degradation',
             'final_answer': 'Jog is fine.',
             'regression_detected': True,
+            'case_status': 'new',
             'case_index_path': 'artifacts/cases/recent-b/README.md',
             'trace_view_path': 'artifacts/views/recent-b.html',
             'regression_report_path': 'artifacts/regressions/golden__recent-b.md',
@@ -130,6 +137,7 @@ def test_build_case_board_html_marks_rising_fingerprint():
             'answer_risk': 'no_explicit_risk_found',
             'final_answer': 'ok',
             'regression_detected': False,
+            'case_status': 'fixed',
             'case_index_path': 'artifacts/cases/older-a/README.md',
             'trace_view_path': 'artifacts/views/older-a.html',
             'regression_report_path': None,
@@ -144,6 +152,7 @@ def test_build_case_board_html_marks_rising_fingerprint():
             'answer_risk': 'no_explicit_risk_found',
             'final_answer': 'ok',
             'regression_detected': False,
+            'case_status': 'fixed',
             'case_index_path': 'artifacts/cases/older-b/README.md',
             'trace_view_path': 'artifacts/views/older-b.html',
             'regression_report_path': None,

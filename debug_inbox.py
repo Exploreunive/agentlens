@@ -4,7 +4,7 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from casefile import write_case_board, write_case_index
+from casefile import parse_case_status, write_case_board, write_case_index
 from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
 from viewer import write_trace_view
@@ -75,6 +75,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
             baseline_name=active_baseline_name,
             regression_report_path=str(regression_report) if regression_report else None,
         )
+        case_status = parse_case_status(case_index_path)
 
         items.append(
             {
@@ -99,6 +100,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'trace_view_path': str(trace_view_path),
                 'regression_report_path': str(regression_report) if regression_report else None,
                 'case_index_path': str(case_index_path),
+                'case_status': case_status,
             }
         )
     items.sort(

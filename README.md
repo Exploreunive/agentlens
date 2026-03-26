@@ -228,6 +228,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - shareable case folders under `artifacts/cases/`
 - an incident board homepage at `artifacts/cases/index.html`
 - fingerprint trend watch for rising recurring failures
+- case status tracking for `new / investigating / fixed / ignored / recurring`
 
 The trace viewer now also highlights:
 - the **first suspicious step**

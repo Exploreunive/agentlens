@@ -136,6 +136,7 @@ def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_p
     assert items[0]['baseline_name'] == 'golden'
     assert items[0]['trace_view_path'].endswith('candidate.html')
     assert items[0]['case_index_path'].endswith('candidate/README.md')
+    assert items[0]['case_status'] == 'new'
     assert items[0]['regression_report_path'].endswith('golden__candidate.md')
 
 

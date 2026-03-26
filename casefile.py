@@ -9,6 +9,7 @@ from bundle_export import export_bundle
 
 CASEFILES_DIR = Path('artifacts/cases')
 CASE_BOARD_OUT = CASEFILES_DIR / 'index.html'
+DEFAULT_CASE_STATUS = 'new'
 
 
 def case_dir_path(trace_name: str) -> Path:
@@ -24,6 +25,7 @@ def write_case_index(
     priority_score: int,
     baseline_name: Optional[str] = None,
     regression_report_path: Optional[str] = None,
+    status: str = DEFAULT_CASE_STATUS,
 ) -> Path:
     case_dir = case_dir_path(trace_name)
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -33,6 +35,7 @@ def write_case_index(
         '# AgentLens Case File',
         '',
         f'- trace: `{trace_name}`',
+        f'- status: `{status}`',
         f'- priority: `{priority_level}` ({priority_score}/100)',
         f'- final_answer: {final_answer}',
         f'- trace_view: `{trace_view_path}`',
@@ -57,9 +60,20 @@ def write_case_index(
     return out
 
 
+def parse_case_status(case_index_path: str | Path) -> str:
+    path = Path(case_index_path)
+    if not path.exists():
+        return DEFAULT_CASE_STATUS
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if line.startswith('- status: `') and line.endswith('`'):
+            return line[len('- status: `'):-1]
+    return DEFAULT_CASE_STATUS
+
+
 def build_case_board_html(items: list[dict[str, Any]]) -> str:
     regressions = [item for item in items if item.get('regression_detected')]
     top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
+    statuses = Counter((item.get('case_status') or DEFAULT_CASE_STATUS) for item in items)
     fingerprints = Counter(
         (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
         for item in items
@@ -124,6 +138,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
             <span>failure: <strong>{html.escape(str(item.get('failure_mode') or 'unknown'))}</strong></span>
             <span>fingerprint: <strong>{html.escape(str(((item.get('failure_fingerprint') or {}).get('label')) or 'unknown'))}</strong></span>
             <span>risk: <strong>{html.escape(str(item.get('answer_risk') or 'unknown'))}</strong></span>
+            <span>status: <strong>{html.escape(str(item.get('case_status') or DEFAULT_CASE_STATUS))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get('final_answer') or 'No final answer captured.'))}</div>
@@ -220,6 +235,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
       <div class="section">
         <h2>Top Cases</h2>
         <p>Start with the highest-value incidents first, especially baseline regressions.</p>
+        <p>Status mix: {html.escape(', '.join(f'{key}={value}' for key, value in sorted(statuses.items())) or 'none')}</p>
         <div class="case-stack">{case_cards}</div>
       </div>
     </section>
