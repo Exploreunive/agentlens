@@ -70,6 +70,7 @@ def test_build_case_board_html_contains_summary_cards():
         },
     )
     assert 'AgentLens Incident Board' in html
+    assert 'Action Queue' in html
     assert 'Recurring Issue Leaderboard' in html
     assert 'Trend Watch' in html
     assert 'Benchmark Gate' in html
@@ -79,6 +80,7 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'cases 1' in html
     assert 'unresolved 1' in html
     assert 'matched 5' in html
+    assert 'baseline regression' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -196,3 +198,4 @@ def test_build_case_board_html_marks_rising_fingerprint():
     assert 'wrong_tool_selected.jsonl' in html
     assert 'coverage matched -&gt; partial' not in html
     assert 'coverage matched -> partial' in html
+    assert 'recent-a.jsonl' in html

@@ -73,6 +73,18 @@ def parse_case_status(case_index_path: str | Path) -> str:
 
 def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[dict[str, Any]] = None) -> str:
     regressions = [item for item in items if item.get('regression_detected')]
+    unresolved_items = [
+        item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'}
+    ]
+    action_queue = sorted(
+        unresolved_items,
+        key=lambda item: (
+            not bool(item.get('regression_detected')),
+            -int(item.get('priority_score', 0)),
+            int(item.get('trace_recency_rank', 999999)),
+            str(item.get('trace_file')),
+        ),
+    )[:5]
     top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
     statuses = Counter((item.get('case_status') or DEFAULT_CASE_STATUS) for item in items)
     fingerprint_labels = [
@@ -159,6 +171,16 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     )
     if not gate_cards:
         gate_cards = '<div class="empty">No benchmark regressions currently detected.</div>'
+    queue_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">Next Action</div>
+          <div class="mini-value">{html.escape(str(item.get("trace_file")))}</div>
+          <div class="mini-meta">status {html.escape(str(item.get("case_status") or DEFAULT_CASE_STATUS))} · priority {html.escape(str(item.get("priority_score", 0)))} · {'baseline regression' if item.get('regression_detected') else 'incident review'}</div>
+        </div>
+        '''
+        for item in action_queue
+    ) or '<div class="empty">No unresolved cases right now.</div>'
 
     case_cards = ''.join(
         f'''
@@ -218,6 +240,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
     .stat-value {{ margin-top: 8px; font-size: 28px; font-weight: 800; }}
     .layout {{ display: grid; grid-template-columns: 1.1fr 1.1fr 1.8fr; gap: 16px; }}
+    .queue-layout {{ display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0 0 16px; }}
     .gate-layout {{ display: grid; grid-template-columns: 1.1fr 2.9fr; gap: 16px; margin-top: 16px; }}
     .section {{ padding: 18px; }}
     .mini-grid {{ display: grid; gap: 12px; }}
@@ -240,7 +263,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     .level-low .score {{ border-color: rgba(109, 211, 160, 0.55); }}
     .empty {{ color: var(--muted); }}
     @media (max-width: 900px) {{
-      .stats, .layout, .gate-layout {{ grid-template-columns: 1fr; }}
+      .stats, .layout, .queue-layout, .gate-layout {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -255,7 +278,14 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         <div class="stat"><div class="stat-label">Cases</div><div class="stat-value">{len(items)}</div></div>
         <div class="stat"><div class="stat-label">Regressions</div><div class="stat-value">{len(regressions)}</div></div>
         <div class="stat"><div class="stat-label">High Priority</div><div class="stat-value">{sum(1 for item in items if item.get('priority_level') == 'high')}</div></div>
-        <div class="stat"><div class="stat-label">Fingerprints</div><div class="stat-value">{len(fingerprints)}</div></div>
+        <div class="stat"><div class="stat-label">Unresolved</div><div class="stat-value">{len(unresolved_items)}</div></div>
+      </div>
+    </section>
+    <section class="queue-layout">
+      <div class="section">
+        <h2>Action Queue</h2>
+        <p>Start here when you only have time to fix the next few incidents. Baseline regressions rise to the top automatically.</p>
+        <div class="mini-grid">{queue_cards}</div>
       </div>
     </section>
     <section class="layout">
