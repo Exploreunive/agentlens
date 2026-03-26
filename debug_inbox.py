@@ -4,7 +4,7 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from casefile import write_case_index
+from casefile import write_case_board, write_case_index
 from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
 from viewer import write_trace_view
@@ -292,6 +292,7 @@ def write_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> P
     items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(build_debug_inbox_report(items), encoding='utf-8')
+    write_case_board(items)
     return OUT
 
 
@@ -299,4 +300,5 @@ def write_debug_inbox_html(limit: int = 10, baseline_name: Optional[str] = None)
     items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
     HTML_OUT.parent.mkdir(parents=True, exist_ok=True)
     HTML_OUT.write_text(build_debug_inbox_html(items), encoding='utf-8')
+    write_case_board(items)
     return HTML_OUT

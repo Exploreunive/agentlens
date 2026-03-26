@@ -125,11 +125,14 @@ def test_cli_supports_debug_inbox(tmp_path: Path):
     report = work / 'artifacts' / 'debug_inbox.md'
     html_report = work / 'artifacts' / 'debug_inbox.html'
     trace_views_dir = work / 'artifacts' / 'views'
+    case_board = work / 'artifacts' / 'cases' / 'index.html'
     assert report.exists()
     assert html_report.exists()
+    assert case_board.exists()
     assert any(trace_views_dir.glob('*.html'))
     assert 'AgentLens Debug Inbox' in report.read_text(encoding='utf-8')
     assert 'AgentLens Debug Inbox' in html_report.read_text(encoding='utf-8')
+    assert 'AgentLens Incident Board' in case_board.read_text(encoding='utf-8')
 
 
 def test_cli_inbox_supports_baseline_watch(tmp_path: Path):

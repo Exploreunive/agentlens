@@ -197,6 +197,7 @@ def test_write_debug_inbox_creates_report(tmp_path: Path):
     assert 'AgentLens Debug Inbox' in out.read_text(encoding='utf-8')
     assert (tmp_path / 'artifacts' / 'views' / 'demo.html').exists()
     assert (tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md').exists()
+    assert (tmp_path / 'artifacts' / 'cases' / 'index.html').exists()
 
 
 def test_write_debug_inbox_html_creates_report(tmp_path: Path):
