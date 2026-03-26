@@ -4,6 +4,7 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from casefile import write_case_index
 from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
 from viewer import write_trace_view
@@ -64,6 +65,17 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
             priority_score = min(priority_score + 25, 100)
             priority_reasons = ['This run regressed against the active baseline.'] + priority_reasons
 
+        priority_level = _priority_level(priority_score)
+        case_index_path = write_case_index(
+            trace_name=trace_path.name,
+            trace_view_path=str(trace_view_path),
+            final_answer=summary.get('final_answer'),
+            priority_level=priority_level,
+            priority_score=priority_score,
+            baseline_name=active_baseline_name,
+            regression_report_path=str(regression_report) if regression_report else None,
+        )
+
         items.append(
             {
                 'trace_file': trace_path.name,
@@ -71,7 +83,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'runtime': summary.get('runtime'),
                 'agent_name': summary.get('agent_name'),
                 'priority_score': priority_score,
-                'priority_level': _priority_level(priority_score),
+                'priority_level': priority_level,
                 'priority_reasons': priority_reasons[:4],
                 'answer_risk': summary.get('answer_risk'),
                 'failure_mode': summary.get('failure_mode'),
@@ -84,6 +96,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'regression_summary': regression,
                 'trace_view_path': str(trace_view_path),
                 'regression_report_path': str(regression_report) if regression_report else None,
+                'case_index_path': str(case_index_path),
             }
         )
     items.sort(
@@ -117,6 +130,7 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         if item.get('baseline_name'):
             lines.append(f"- baseline_watch: `{item.get('baseline_name')}` -> regression=`{item.get('regression_detected')}`")
         lines.append(f"- trace_view: `{item.get('trace_view_path')}`")
+        lines.append(f"- case_file: `{item.get('case_index_path')}`")
         if item.get('regression_report_path'):
             lines.append(f"- regression_report: `{item.get('regression_report_path')}`")
         lines.append(f"- final_answer: {item.get('final_answer')}")
@@ -164,6 +178,8 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 Open this run with <code>python3 cli.py view {html.escape(str(Path(str(item.get("trace_file"))).stem))}</code>
                 <br />
                 Trace page: <code>{html.escape(str(item.get("trace_view_path") or ""))}</code>
+                <br />
+                Case file: <code>{html.escape(str(item.get("case_index_path") or ""))}</code>
               </div>
               <div class="columns">
                 <div>

@@ -23,6 +23,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
             'regression_detected': True,
             'regression_reasons': ['Candidate emits more suspicious signals than the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
+            'case_index_path': 'artifacts/cases/run-a/README.md',
             'regression_report_path': 'artifacts/regressions/golden__run-a.md',
         }
     ])
@@ -31,6 +32,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
     assert 'why this is prioritized' in report
     assert 'baseline_watch: `golden` -> regression=`True`' in report
     assert 'trace_view: `artifacts/views/run-a.html`' in report
+    assert 'case_file: `artifacts/cases/run-a/README.md`' in report
     assert 'regression_report: `artifacts/regressions/golden__run-a.md`' in report
 
 
@@ -51,6 +53,7 @@ def test_build_debug_inbox_html_contains_cards():
             'regression_detected': True,
             'regression_reasons': ['Final answer changed relative to the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
+            'case_index_path': 'artifacts/cases/run-a/README.md',
             'regression_report_path': 'artifacts/regressions/golden__run-a.md',
         }
     ])
@@ -59,6 +62,7 @@ def test_build_debug_inbox_html_contains_cards():
     assert 'run-a.jsonl' in html
     assert 'regressed' in html
     assert 'artifacts/views/run-a.html' in html
+    assert 'artifacts/cases/run-a/README.md' in html
     assert 'artifacts/regressions/golden__run-a.md' in html
 
 
@@ -129,6 +133,7 @@ def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_p
     assert items[0]['regression_detected'] is True
     assert items[0]['baseline_name'] == 'golden'
     assert items[0]['trace_view_path'].endswith('candidate.html')
+    assert items[0]['case_index_path'].endswith('candidate/README.md')
     assert items[0]['regression_report_path'].endswith('golden__candidate.md')
 
 
@@ -191,6 +196,7 @@ def test_write_debug_inbox_creates_report(tmp_path: Path):
     assert out.exists()
     assert 'AgentLens Debug Inbox' in out.read_text(encoding='utf-8')
     assert (tmp_path / 'artifacts' / 'views' / 'demo.html').exists()
+    assert (tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md').exists()
 
 
 def test_write_debug_inbox_html_creates_report(tmp_path: Path):

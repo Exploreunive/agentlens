@@ -225,6 +225,7 @@ python3 cli.py inbox --baseline good-run
 When inbox runs with baseline watch enabled, it also prepares:
 - per-run trace pages under `artifacts/views/`
 - candidate-specific regression reports under `artifacts/regressions/`
+- shareable case folders under `artifacts/cases/`
 
 The trace viewer now also highlights:
 - the **first suspicious step**
