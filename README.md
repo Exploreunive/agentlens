@@ -12,6 +12,12 @@ The screenshot above is based on a real LangGraph-backed demo run traced by Agen
 - the tool returns fresh evidence: `Shanghai: rain`
 - the final answer updates to match the tool result
 
+To refresh the README screenshot after generating a new trace:
+
+```bash
+./scripts/render_readme_screenshot.sh
+```
+
 That is the core product idea:
 - **failure explanation** — where the run likely went wrong
 - **tool and memory evidence** — what influenced the outcome
