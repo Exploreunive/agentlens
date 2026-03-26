@@ -87,6 +87,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'priority_reasons': priority_reasons[:4],
                 'answer_risk': summary.get('answer_risk'),
                 'failure_mode': summary.get('failure_mode'),
+                'failure_fingerprint': summary.get('failure_fingerprint'),
                 'final_answer': summary.get('final_answer'),
                 'suspicious_signals': summary.get('suspicious_signals', []),
                 'baseline_name': active_baseline_name,

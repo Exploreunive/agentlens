@@ -46,6 +46,7 @@ def test_build_case_board_html_contains_summary_cards():
             'priority_score': 90,
             'priority_level': 'high',
             'failure_mode': 'memory_vs_tool_conflict',
+            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'memory_conflict|memory_involved'},
             'answer_risk': 'hidden_degradation',
             'final_answer': 'Jog is fine.',
             'regression_detected': True,
@@ -56,7 +57,7 @@ def test_build_case_board_html_contains_summary_cards():
     ])
     assert 'AgentLens Incident Board' in html
     assert 'Recurring Failure Modes' in html
-    assert 'memory_vs_tool_conflict' in html
+    assert 'memory-vs-tool-conflict' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -70,6 +71,7 @@ def test_write_case_board_creates_index(tmp_path: Path):
                 'priority_score': 90,
                 'priority_level': 'high',
                 'failure_mode': 'memory_vs_tool_conflict',
+                'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'memory_conflict|memory_involved'},
                 'answer_risk': 'hidden_degradation',
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,

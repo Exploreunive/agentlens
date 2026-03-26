@@ -97,3 +97,18 @@ def test_summarize_run_assigns_high_debug_priority_for_suspicious_failure():
     summary = summarize_run(events)
     assert summary['debug_priority']['level'] == 'high'
     assert summary['debug_priority']['score'] >= 70
+
+
+def test_summarize_run_builds_failure_fingerprint():
+    events = [
+        {'type': 'run.start', 'payload': {'runtime': 'langgraph'}},
+        {'type': 'tool.result', 'payload': {'content': 'Shanghai: rain'}},
+        {'type': 'memory.recall', 'payload': {'content': 'forecast=sunny'}},
+        {'type': 'error', 'payload': {'kind': 'memory_conflict', 'message': 'conflicts with tool evidence'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'Jog is fine.'}},
+    ]
+    summary = summarize_run(events)
+    fingerprint = summary['failure_fingerprint']
+    assert fingerprint['label'] == 'memory-vs-tool-conflict'
+    assert 'memory_conflict' in fingerprint['id']
+    assert 'memory_involved' in fingerprint['tokens']

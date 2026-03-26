@@ -60,7 +60,10 @@ def write_case_index(
 def build_case_board_html(items: list[dict[str, Any]]) -> str:
     regressions = [item for item in items if item.get('regression_detected')]
     top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
-    fingerprints = Counter(item.get('failure_mode') or 'unknown_failure' for item in items)
+    fingerprints = Counter(
+        (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
+        for item in items
+    )
     fingerprint_cards = ''.join(
         f'''
         <div class="mini-card">
@@ -84,6 +87,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
           </div>
           <div class="meta">
             <span>failure: <strong>{html.escape(str(item.get('failure_mode') or 'unknown'))}</strong></span>
+            <span>fingerprint: <strong>{html.escape(str(((item.get('failure_fingerprint') or {}).get('label')) or 'unknown'))}</strong></span>
             <span>risk: <strong>{html.escape(str(item.get('answer_risk') or 'unknown'))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
           </div>

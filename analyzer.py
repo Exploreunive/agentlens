@@ -177,6 +177,60 @@ def _compute_debug_priority(summary: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _build_failure_fingerprint(summary: Dict[str, Any]) -> Dict[str, Any]:
+    suspicious = summary.get('suspicious_signals', [])
+    answer_alignment = summary.get('answer_alignment', {})
+    tool_evidence = summary.get('tool_evidence', [])
+    memory_influence = summary.get('memory_influence', [])
+    turns = summary.get('turns', [])
+
+    tokens: List[str] = []
+    label = summary.get('failure_mode') or 'unknown_failure'
+
+    if suspicious:
+        signal_type = suspicious[0].get('type') or 'unknown_signal'
+        tokens.append(signal_type)
+    else:
+        signal_type = 'no_explicit_signal'
+        tokens.append(signal_type)
+
+    tokens.append('memory_involved' if memory_influence else 'memory_not_used')
+    tokens.append('tool_evidence_present' if tool_evidence else 'tool_evidence_missing')
+
+    alignment_status = answer_alignment.get('status') or 'unknown_alignment'
+    tokens.append(alignment_status)
+
+    if len(turns) >= 3:
+        tokens.append('multi_turn')
+    elif turns:
+        tokens.append('single_turn')
+    else:
+        tokens.append('no_turns')
+
+    answer_risk = summary.get('answer_risk') or 'unknown_risk'
+    tokens.append(answer_risk)
+
+    if signal_type == 'memory_conflict':
+        label = 'memory-vs-tool-conflict'
+    elif signal_type == 'stale_memory_override':
+        label = 'stale-memory-override'
+    elif signal_type == 'span_error':
+        label = 'runtime-span-error'
+    elif alignment_status in {'unclear', 'needs_review'} and tool_evidence:
+        label = 'answer-ungrounded-with-tools'
+    elif alignment_status == 'no_tool_evidence':
+        label = 'answer-without-external-evidence'
+    elif summary.get('failure_mode') == 'no_explicit_failure':
+        label = 'no-explicit-failure'
+
+    fingerprint_id = '|'.join(tokens)
+    return {
+        'id': fingerprint_id,
+        'label': label,
+        'tokens': tokens,
+    }
+
+
 def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         'final_answer': None,
@@ -446,6 +500,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary['answer_risk'] = _extract_answer_risk(summary['final_answer'], summary['suspicious_signals'])
     summary['answer_alignment'] = _summarize_answer_alignment(summary['final_answer'], summary['tool_evidence'])
     summary['debug_priority'] = _compute_debug_priority(summary)
+    summary['failure_fingerprint'] = _build_failure_fingerprint(summary)
     return summary
 
 
