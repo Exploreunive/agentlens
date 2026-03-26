@@ -10,12 +10,21 @@ def test_collect_benchmark_cases_loads_fixture_summaries():
     names = {item['fixture'] for item in items}
     assert 'wrong_tool_selected.jsonl' in names
     assert 'tool_result_ignored.jsonl' in names
+    assert all(item.get('coverage_status') == 'matched' for item in items)
 
 
 def test_build_benchmark_report_contains_expected_sections():
     report = build_benchmark_report([
         {
             'fixture': 'wrong_tool_selected.jsonl',
+            'expected': {
+                'failure_mode': 'wrong_tool_selected',
+                'fingerprint': 'wrong-tool-selected',
+                'signal': 'used_wrong_tool',
+            },
+            'coverage_status': 'matched',
+            'matched_fields': ['failure_mode', 'fingerprint', 'signal'],
+            'missed_fields': [],
             'failure_mode': 'wrong_tool_selected',
             'fingerprint': 'wrong-tool-selected',
             'priority_level': 'high',
@@ -28,6 +37,7 @@ def test_build_benchmark_report_contains_expected_sections():
     assert 'AgentLens Benchmark Coverage Report' in report
     assert 'wrong_tool_selected' in report
     assert 'wrong-tool-selected' in report
+    assert 'coverage_status: `matched`' in report
 
 
 def test_write_benchmark_report_creates_markdown_and_html(tmp_path: Path):
@@ -49,3 +59,4 @@ def test_write_benchmark_report_creates_markdown_and_html(tmp_path: Path):
     assert (tmp_path / md_out).exists()
     assert (tmp_path / html_out).exists()
     assert 'AgentLens Benchmark Coverage' in (tmp_path / html_out).read_text(encoding='utf-8')
+    assert 'Matched' in (tmp_path / html_out).read_text(encoding='utf-8')

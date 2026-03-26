@@ -11,25 +11,75 @@ FIXTURES_DIR = Path('tests/fixtures/benchmarks')
 OUT_MD = Path('artifacts/benchmark_report.md')
 OUT_HTML = Path('artifacts/benchmark_report.html')
 
+EXPECTATIONS = {
+    'clarification_failure.jsonl': {
+        'failure_mode': 'clarification_failure',
+        'fingerprint': 'clarification-missing',
+        'signal': 'clarification_missing',
+    },
+    'goal_partially_completed.jsonl': {
+        'failure_mode': 'goal_partially_completed',
+        'fingerprint': 'goal-partially-completed',
+        'signal': 'goal_partially_completed',
+    },
+    'tool_result_ignored.jsonl': {
+        'failure_mode': 'tool_result_ignored',
+        'fingerprint': 'tool-result-ignored',
+        'signal': 'tool_result_ignored',
+    },
+    'wrong_tool_argument.jsonl': {
+        'failure_mode': 'wrong_tool_argument',
+        'fingerprint': 'wrong-tool-argument',
+        'signal': 'used_wrong_tool_argument',
+    },
+    'wrong_tool_selected.jsonl': {
+        'failure_mode': 'wrong_tool_selected',
+        'fingerprint': 'wrong-tool-selected',
+        'signal': 'used_wrong_tool',
+    },
+}
+
+
+def _coverage_status(item: dict[str, Any], expected: dict[str, str]) -> tuple[str, list[str], list[str]]:
+    matched: list[str] = []
+    missed: list[str] = []
+    for key in ('failure_mode', 'fingerprint', 'signal'):
+        if item.get(key) == expected.get(key):
+            matched.append(key)
+        else:
+            missed.append(key)
+
+    if len(matched) == 3:
+        return 'matched', matched, missed
+    if matched:
+        return 'partial', matched, missed
+    return 'missed', matched, missed
+
 
 def collect_benchmark_cases() -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for path in sorted(FIXTURES_DIR.glob('*.jsonl')):
         events = load_trace(path)
         summary = summarize_run(events)
-        items.append(
-            {
-                'fixture': path.name,
-                'run_id': events[0].get('run_id') if events else path.stem,
-                'failure_mode': summary.get('failure_mode'),
-                'fingerprint': (summary.get('failure_fingerprint') or {}).get('label'),
-                'priority_level': (summary.get('debug_priority') or {}).get('level'),
-                'priority_score': (summary.get('debug_priority') or {}).get('score'),
-                'answer_risk': summary.get('answer_risk'),
-                'signal': (summary.get('suspicious_signals') or [{}])[0].get('type'),
-                'final_answer': summary.get('final_answer'),
-            }
-        )
+        item = {
+            'fixture': path.name,
+            'run_id': events[0].get('run_id') if events else path.stem,
+            'failure_mode': summary.get('failure_mode'),
+            'fingerprint': (summary.get('failure_fingerprint') or {}).get('label'),
+            'priority_level': (summary.get('debug_priority') or {}).get('level'),
+            'priority_score': (summary.get('debug_priority') or {}).get('score'),
+            'answer_risk': summary.get('answer_risk'),
+            'signal': (summary.get('suspicious_signals') or [{}])[0].get('type'),
+            'final_answer': summary.get('final_answer'),
+        }
+        expected = EXPECTATIONS.get(path.name)
+        if expected:
+            coverage, matched_fields, missed_fields = _coverage_status(item, expected)
+            item['expected'] = expected
+            item['coverage_status'] = coverage
+            item['matched_fields'] = matched_fields
+            item['missed_fields'] = missed_fields
+        items.append(item)
     return items
 
 
@@ -39,10 +89,22 @@ def build_benchmark_report(items: list[dict[str, Any]]) -> str:
         lines.append('No benchmark fixtures found.')
         return '\n'.join(lines) + '\n'
 
+    matched = sum(1 for item in items if item.get('coverage_status') == 'matched')
+    partial = sum(1 for item in items if item.get('coverage_status') == 'partial')
+    missed = sum(1 for item in items if item.get('coverage_status') == 'missed')
+
     lines.append('Public benchmark-inspired failure fixtures currently recognized by AgentLens.')
+    lines.append(f'- coverage_summary: matched={matched} partial={partial} missed={missed}')
     lines.append('')
     for item in items:
         lines.append(f"## `{item['fixture']}`")
+        if item.get('expected'):
+            lines.append(f"- expected_failure_mode: `{item['expected']['failure_mode']}`")
+            lines.append(f"- expected_fingerprint: `{item['expected']['fingerprint']}`")
+            lines.append(f"- expected_signal: `{item['expected']['signal']}`")
+            lines.append(f"- coverage_status: `{item.get('coverage_status')}`")
+            lines.append(f"- matched_fields: `{item.get('matched_fields')}`")
+            lines.append(f"- missed_fields: `{item.get('missed_fields')}`")
         lines.append(f"- failure_mode: `{item['failure_mode']}`")
         lines.append(f"- fingerprint: `{item['fingerprint']}`")
         lines.append(f"- priority: `{item['priority_level']}` ({item['priority_score']}/100)")
@@ -54,9 +116,12 @@ def build_benchmark_report(items: list[dict[str, Any]]) -> str:
 
 
 def build_benchmark_report_html(items: list[dict[str, Any]]) -> str:
+    matched = sum(1 for item in items if item.get('coverage_status') == 'matched')
+    partial = sum(1 for item in items if item.get('coverage_status') == 'partial')
+    missed = sum(1 for item in items if item.get('coverage_status') == 'missed')
     cards = ''.join(
         f'''
-        <section class="card level-{html.escape(str(item.get("priority_level") or "low"))}">
+        <section class="card level-{html.escape(str(item.get("priority_level") or "low"))} coverage-{html.escape(str(item.get("coverage_status") or "unknown"))}">
           <div class="head">
             <div>
               <div class="eyebrow">Benchmark Fixture</div>
@@ -65,10 +130,17 @@ def build_benchmark_report_html(items: list[dict[str, Any]]) -> str:
             <div class="score">{html.escape(str(item.get("priority_score") or 0))}</div>
           </div>
           <div class="meta">
+            <span>coverage: <strong>{html.escape(str(item.get("coverage_status") or "unknown"))}</strong></span>
             <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "unknown"))}</strong></span>
             <span>fingerprint: <strong>{html.escape(str(item.get("fingerprint") or "unknown"))}</strong></span>
             <span>risk: <strong>{html.escape(str(item.get("answer_risk") or "unknown"))}</strong></span>
             <span>signal: <strong>{html.escape(str(item.get("signal") or "unknown"))}</strong></span>
+          </div>
+          <div class="meta">
+            <span>expected failure: <strong>{html.escape(str((item.get("expected") or {}).get("failure_mode") or "n/a"))}</strong></span>
+            <span>expected fingerprint: <strong>{html.escape(str((item.get("expected") or {}).get("fingerprint") or "n/a"))}</strong></span>
+            <span>matched: <strong>{html.escape(', '.join(item.get("matched_fields") or []) or 'none')}</strong></span>
+            <span>missed: <strong>{html.escape(', '.join(item.get("missed_fields") or []) or 'none')}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
         </section>
@@ -95,18 +167,30 @@ def build_benchmark_report_html(items: list[dict[str, Any]]) -> str:
     body {{ margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: radial-gradient(circle at top, #132440 0%, var(--bg) 60%); color: var(--text); }}
     main {{ max-width: 1100px; margin: 0 auto; padding: 40px 24px 64px; }}
     .stack {{ display: grid; gap: 14px; }}
+    .summary {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0 22px; }}
+    .stat {{ background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 16px; }}
+    .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
+    .stat-value {{ margin-top: 8px; font-size: 28px; font-weight: 800; }}
     .card {{ background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }}
     .head {{ display: flex; justify-content: space-between; gap: 16px; align-items: start; }}
     .eyebrow {{ color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }}
     .score {{ min-width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px; border: 1px solid var(--border); background: #0d1728; font-weight: 800; font-size: 22px; }}
     .meta {{ display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 12px 0; color: var(--muted); }}
     .answer {{ padding: 12px 14px; border-radius: 14px; background: #0c1524; border: 1px solid var(--border); line-height: 1.6; white-space: pre-wrap; }}
+    .coverage-matched {{ box-shadow: 0 0 0 1px rgba(109, 211, 160, 0.18) inset; }}
+    .coverage-partial {{ box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.18) inset; }}
+    .coverage-missed {{ box-shadow: 0 0 0 1px rgba(255, 138, 101, 0.18) inset; }}
   </style>
 </head>
 <body>
   <main>
     <h1>AgentLens Benchmark Coverage</h1>
     <p>How AgentLens currently interprets public benchmark-inspired agent failure fixtures.</p>
+    <div class="summary">
+      <div class="stat"><div class="stat-label">Matched</div><div class="stat-value">{matched}</div></div>
+      <div class="stat"><div class="stat-label">Partial</div><div class="stat-value">{partial}</div></div>
+      <div class="stat"><div class="stat-label">Missed</div><div class="stat-value">{missed}</div></div>
+    </div>
     <div class="stack">{cards}</div>
   </main>
 </body>
