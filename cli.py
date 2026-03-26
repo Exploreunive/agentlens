@@ -90,8 +90,8 @@ def cmd_bundle_export(args: argparse.Namespace) -> int:
 
 
 def cmd_inbox(args: argparse.Namespace) -> int:
-    markdown_out = write_debug_inbox(limit=args.limit)
-    html_out = write_debug_inbox_html(limit=args.limit)
+    markdown_out = write_debug_inbox(limit=args.limit, baseline_name=args.baseline)
+    html_out = write_debug_inbox_html(limit=args.limit, baseline_name=args.baseline)
     print(f'Wrote {markdown_out}')
     print(f'Wrote {html_out}')
     return 0
@@ -154,6 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_inbox = sub.add_parser('inbox', help='rank recent traces by debug priority')
     p_inbox.add_argument('--limit', type=int, default=10, help='how many recent traces to include')
+    p_inbox.add_argument('--baseline', help='optional saved baseline name to watch for regressions')
     p_inbox.set_defaults(func=cmd_inbox)
 
     return parser

@@ -59,9 +59,17 @@ def save_baseline(name: str, trace_path: Path) -> Path:
 
 def load_baseline(name: str) -> Tuple[Path, List[Dict[str, Any]]]:
     baseline_file = BASELINE_DIR / f'{name}.json'
+    if not baseline_file.exists():
+        raise SystemExit(f'Baseline not found: {name}')
     data = json.loads(baseline_file.read_text(encoding='utf-8'))
     trace_file = TRACE_DIR / data['trace_file']
     return trace_file, load_trace(trace_file)
+
+
+def list_baselines() -> List[Path]:
+    if not BASELINE_DIR.exists():
+        return []
+    return sorted(BASELINE_DIR.glob('*.json'))
 
 
 def summarize_regression(baseline_events: List[Dict[str, Any]], candidate_events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -71,7 +79,23 @@ def summarize_regression(baseline_events: List[Dict[str, Any]], candidate_events
 
     baseline_signals = len(baseline_summary.get('suspicious_signals', []))
     candidate_signals = len(candidate_summary.get('suspicious_signals', []))
-    worsened = candidate_signals > baseline_signals or baseline_summary.get('final_answer') != candidate_summary.get('final_answer')
+    reasons: List[str] = []
+
+    if candidate_signals > baseline_signals:
+        reasons.append('Candidate emits more suspicious signals than the baseline.')
+
+    if baseline_summary.get('final_answer') != candidate_summary.get('final_answer'):
+        reasons.append('Final answer changed relative to the baseline.')
+
+    baseline_risk = baseline_summary.get('answer_risk')
+    candidate_risk = candidate_summary.get('answer_risk')
+    if baseline_risk != candidate_risk and candidate_risk not in {None, 'no_explicit_risk_found'}:
+        reasons.append(f'Answer risk worsened from `{baseline_risk}` to `{candidate_risk}`.')
+
+    worsened = bool(reasons)
+
+    if not reasons:
+        reasons.append('No obvious regression was detected against the baseline.')
 
     return {
         'regression_detected': worsened,
@@ -80,6 +104,11 @@ def summarize_regression(baseline_events: List[Dict[str, Any]], candidate_events
         'baseline_suspicious_signals': baseline_summary.get('suspicious_signals', []),
         'candidate_suspicious_signals': candidate_summary.get('suspicious_signals', []),
         'divergence': divergence.get('first_divergence'),
+        'baseline_failure_mode': baseline_summary.get('failure_mode'),
+        'candidate_failure_mode': candidate_summary.get('failure_mode'),
+        'baseline_answer_risk': baseline_risk,
+        'candidate_answer_risk': candidate_risk,
+        'reasons': reasons,
     }
 
 

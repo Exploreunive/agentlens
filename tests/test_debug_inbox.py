@@ -19,11 +19,15 @@ def test_build_debug_inbox_report_contains_priority_sections():
             'failure_mode': 'memory_vs_tool_conflict',
             'final_answer': 'Jog is fine.',
             'suspicious_signals': [{'type': 'memory_conflict'}],
+            'baseline_name': 'golden',
+            'regression_detected': True,
+            'regression_reasons': ['Candidate emits more suspicious signals than the baseline.'],
         }
     ])
     assert '# AgentLens Debug Inbox' in report
     assert 'priority: `high` (82/100)' in report
     assert 'why this is prioritized' in report
+    assert 'baseline_watch: `golden` -> regression=`True`' in report
 
 
 def test_build_debug_inbox_html_contains_cards():
@@ -39,11 +43,15 @@ def test_build_debug_inbox_html_contains_cards():
             'failure_mode': 'memory_vs_tool_conflict',
             'final_answer': 'Jog is fine.',
             'suspicious_signals': [{'type': 'memory_conflict', 'event_index': 7}],
+            'baseline_name': 'golden',
+            'regression_detected': True,
+            'regression_reasons': ['Final answer changed relative to the baseline.'],
         }
     ])
     assert '<title>AgentLens Debug Inbox</title>' in html
     assert 'Recent traces ranked by debugging value' in html
     assert 'run-a.jsonl' in html
+    assert 'regressed' in html
 
 
 def test_collect_debug_inbox_sorts_by_priority_score(tmp_path: Path):
@@ -74,6 +82,44 @@ def test_collect_debug_inbox_sorts_by_priority_score(tmp_path: Path):
 
     assert items[0]['run_id'] == 'high'
     assert items[0]['priority_score'] >= items[1]['priority_score']
+
+
+def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_path: Path):
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        traces = Path('.agentlens/traces')
+        traces.mkdir(parents=True)
+        baseline_trace = traces / 'baseline.jsonl'
+        baseline_trace.write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'baseline', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'baseline', 'type': 'run.end', 'payload': {'final_answer': 'Skip jogging.'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        baselines = Path('.agentlens/baselines')
+        baselines.mkdir(parents=True)
+        (baselines / 'golden.json').write_text(
+            json.dumps({'name': 'golden', 'trace_file': 'baseline.jsonl'}),
+            encoding='utf-8',
+        )
+        (traces / 'candidate.jsonl').write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'candidate', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'candidate', 'type': 'error', 'payload': {'kind': 'memory_conflict', 'message': 'bad recall'}}),
+                json.dumps({'run_id': 'candidate', 'type': 'run.end', 'payload': {'final_answer': 'Jog is fine.'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        items = collect_debug_inbox(limit=10, baseline_name='golden')
+    finally:
+        os.chdir(previous_cwd)
+
+    assert items[0]['trace_file'] == 'candidate.jsonl'
+    assert items[0]['regression_detected'] is True
+    assert items[0]['baseline_name'] == 'golden'
 
 
 def test_write_debug_inbox_creates_report(tmp_path: Path):

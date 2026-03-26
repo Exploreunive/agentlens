@@ -33,6 +33,7 @@ AgentLens is being built to help you answer the harder question:
 The latest alpha can already trace a real LangGraph runtime and render it into a debugging view that surfaces:
 - a debug priority score so you know which run to inspect first
 - a debug inbox so recent runs can be triaged from highest-risk to lowest-risk in Markdown or HTML
+- a baseline watch mode so regressions can jump to the top of the queue
 - runtime overview
 - a plain-language debug story for the run
 - model turns
@@ -218,6 +219,7 @@ python3 cli.py baseline list
 python3 cli.py regression check good-run
 python3 cli.py bundle export
 python3 cli.py inbox                 # rank recent traces into a debug inbox
+python3 cli.py inbox --baseline good-run
 ```
 
 The trace viewer now also highlights:

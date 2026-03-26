@@ -128,3 +128,25 @@ def test_cli_supports_debug_inbox(tmp_path: Path):
     assert html_report.exists()
     assert 'AgentLens Debug Inbox' in report.read_text(encoding='utf-8')
     assert 'AgentLens Debug Inbox' in html_report.read_text(encoding='utf-8')
+
+
+def test_cli_inbox_supports_baseline_watch(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    baseline_demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'minimal'], cwd=work, capture_output=True, text=True)
+    assert baseline_demo.returncode == 0, baseline_demo.stderr
+
+    baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert baseline_save.returncode == 0, baseline_save.stderr
+
+    candidate_demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert candidate_demo.returncode == 0, candidate_demo.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox', '--baseline', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+
+    report = work / 'artifacts' / 'debug_inbox.md'
+    html_report = work / 'artifacts' / 'debug_inbox.html'
+    assert 'Active baseline: `golden-run`.' in report.read_text(encoding='utf-8')
+    assert 'Baseline watch: golden-run' in html_report.read_text(encoding='utf-8')

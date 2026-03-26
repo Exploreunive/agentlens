@@ -2,37 +2,85 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from regression import list_traces, load_trace
+from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression
 from analyzer import summarize_run
 
 OUT = Path('artifacts/debug_inbox.md')
 HTML_OUT = Path('artifacts/debug_inbox.html')
 
 
-def collect_debug_inbox(limit: int = 10) -> List[Dict[str, Any]]:
+def _priority_level(score: int) -> str:
+    if score >= 70:
+        return 'high'
+    if score >= 35:
+        return 'medium'
+    return 'low'
+
+
+def _resolve_inbox_baseline(baseline_name: Optional[str] = None) -> tuple[Optional[str], Optional[Path], Optional[List[Dict[str, Any]]]]:
+    if baseline_name:
+        trace_path, events = load_baseline(baseline_name)
+        return baseline_name, trace_path, events
+
+    baselines = list_baselines()
+    if len(baselines) != 1:
+        return None, None, None
+
+    name = baselines[0].stem
+    trace_path, events = load_baseline(name)
+    return name, trace_path, events
+
+
+def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
+    active_baseline_name, active_baseline_path, active_baseline_events = _resolve_inbox_baseline(baseline_name)
     for trace_path in list_traces()[:limit]:
         events = load_trace(trace_path)
         summary = summarize_run(events)
         priority = summary.get('debug_priority', {})
+        regression = None
+        regression_detected = False
+        regression_reasons: List[str] = []
+        if active_baseline_events is not None and active_baseline_path is not None and trace_path != active_baseline_path:
+            regression = summarize_regression(active_baseline_events, events)
+            regression_detected = bool(regression.get('regression_detected'))
+            regression_reasons = list(regression.get('reasons', []))
+
+        priority_score = int(priority.get('score', 0))
+        priority_reasons = list(priority.get('reasons', []))
+        if regression_detected:
+            priority_score = min(priority_score + 25, 100)
+            priority_reasons = ['This run regressed against the active baseline.'] + priority_reasons
+
         items.append(
             {
                 'trace_file': trace_path.name,
                 'run_id': events[0].get('run_id') if events else trace_path.stem,
                 'runtime': summary.get('runtime'),
                 'agent_name': summary.get('agent_name'),
-                'priority_score': priority.get('score', 0),
-                'priority_level': priority.get('level', 'low'),
-                'priority_reasons': priority.get('reasons', []),
+                'priority_score': priority_score,
+                'priority_level': _priority_level(priority_score),
+                'priority_reasons': priority_reasons[:4],
                 'answer_risk': summary.get('answer_risk'),
                 'failure_mode': summary.get('failure_mode'),
                 'final_answer': summary.get('final_answer'),
                 'suspicious_signals': summary.get('suspicious_signals', []),
+                'baseline_name': active_baseline_name,
+                'baseline_trace_file': active_baseline_path.name if active_baseline_path else None,
+                'regression_detected': regression_detected,
+                'regression_reasons': regression_reasons,
+                'regression_summary': regression,
             }
         )
-    items.sort(key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))
+    items.sort(
+        key=lambda item: (
+            not bool(item.get('regression_detected')),
+            -int(item.get('priority_score', 0)),
+            str(item.get('trace_file')),
+        )
+    )
     return items
 
 
@@ -43,6 +91,9 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         return '\n'.join(lines) + '\n'
 
     lines.append('Runs are sorted by debug priority so you can triage what to inspect first.')
+    baseline_name = next((item.get('baseline_name') for item in items if item.get('baseline_name')), None)
+    if baseline_name:
+        lines.append(f'Active baseline: `{baseline_name}`.')
     lines.append('')
     for index, item in enumerate(items, start=1):
         lines.append(f"## {index}. `{item.get('trace_file')}`")
@@ -51,12 +102,19 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         lines.append(f"- agent: `{item.get('agent_name')}`")
         lines.append(f"- answer_risk: `{item.get('answer_risk')}`")
         lines.append(f"- failure_mode: `{item.get('failure_mode')}`")
+        if item.get('baseline_name'):
+            lines.append(f"- baseline_watch: `{item.get('baseline_name')}` -> regression=`{item.get('regression_detected')}`")
         lines.append(f"- final_answer: {item.get('final_answer')}")
         lines.append(f"- suspicious_signals: {item.get('suspicious_signals')}")
         reasons = item.get('priority_reasons', [])
         if reasons:
             lines.append('- why this is prioritized:')
             for reason in reasons:
+                lines.append(f"  - {reason}")
+        regression_reasons = item.get('regression_reasons', [])
+        if regression_reasons:
+            lines.append('- regression review:')
+            for reason in regression_reasons:
                 lines.append(f"  - {reason}")
         lines.append('')
     return '\n'.join(lines)
@@ -84,6 +142,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <span>agent: <strong>{html.escape(str(item.get("agent_name") or "unknown"))}</strong></span>
                 <span>risk: <strong>{html.escape(str(item.get("answer_risk") or "unknown"))}</strong></span>
                 <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "none"))}</strong></span>
+                <span>baseline watch: <strong>{html.escape("regressed" if item.get("regression_detected") else "clean")}</strong></span>
               </div>
               <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
               <div class="command-hint">Open this run with <code>python3 cli.py view {html.escape(str(Path(str(item.get("trace_file"))).stem))}</code></div>
@@ -96,6 +155,10 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                   <h3>Suspicious signals</h3>
                   <ul>{"".join(f"<li>{html.escape(str(signal.get('type')))} at event #{html.escape(str(signal.get('event_index')))}</li>" for signal in item.get("suspicious_signals", [])) or "<li>No suspicious signals detected.</li>"}</ul>
                 </div>
+                <div>
+                  <h3>Regression watch</h3>
+                  <ul>{"".join(f"<li>{html.escape(str(reason))}</li>" for reason in item.get("regression_reasons", [])) or "<li>No baseline regression review attached.</li>"}</ul>
+                </div>
               </div>
             </section>
             '''
@@ -105,6 +168,8 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
     high_count = sum(1 for item in items if item.get('priority_level') == 'high')
     medium_count = sum(1 for item in items if item.get('priority_level') == 'medium')
     low_count = sum(1 for item in items if item.get('priority_level') == 'low')
+    regression_count = sum(1 for item in items if item.get('regression_detected'))
+    baseline_name = next((item.get('baseline_name') for item in items if item.get('baseline_name')), None)
 
     return f'''<!doctype html>
 <html>
@@ -148,7 +213,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
     .answer {{ padding: 14px 16px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--border); line-height: 1.6; white-space: pre-wrap; }}
     .command-hint {{ margin-top: 12px; color: var(--muted); font-size: 14px; }}
     code {{ color: var(--accent); font-family: ui-monospace, SFMono-Regular, monospace; }}
-    .columns {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }}
+    .columns {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }}
     .columns h3 {{ margin: 0 0 10px; font-size: 14px; color: var(--accent); }}
     ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}
     li {{ margin: 8px 0; }}
@@ -168,12 +233,13 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
       <div>
         <h1>AgentLens Debug Inbox</h1>
         <p>Recent traces ranked by debugging value, so the first thing you open is the run most likely to hide a real agent failure.</p>
+        <p>{html.escape(f"Baseline watch: {baseline_name}" if baseline_name else "Baseline watch: disabled")}</p>
       </div>
       <div class="stats">
         <div class="stat"><div class="label">Traces</div><div class="value">{len(items)}</div></div>
         <div class="stat"><div class="label">High Priority</div><div class="value">{high_count}</div></div>
-        <div class="stat"><div class="label">Medium Priority</div><div class="value">{medium_count}</div></div>
-        <div class="stat"><div class="label">Low Priority</div><div class="value">{low_count}</div></div>
+        <div class="stat"><div class="label">Regressions</div><div class="value">{regression_count}</div></div>
+        <div class="stat"><div class="label">Low Priority</div><div class="value">{low_count + medium_count}</div></div>
       </div>
     </section>
     <section class="stack">
@@ -185,15 +251,15 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
 '''
 
 
-def write_debug_inbox(limit: int = 10) -> Path:
-    items = collect_debug_inbox(limit=limit)
+def write_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> Path:
+    items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(build_debug_inbox_report(items), encoding='utf-8')
     return OUT
 
 
-def write_debug_inbox_html(limit: int = 10) -> Path:
-    items = collect_debug_inbox(limit=limit)
+def write_debug_inbox_html(limit: int = 10, baseline_name: Optional[str] = None) -> Path:
+    items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
     HTML_OUT.parent.mkdir(parents=True, exist_ok=True)
     HTML_OUT.write_text(build_debug_inbox_html(items), encoding='utf-8')
     return HTML_OUT
