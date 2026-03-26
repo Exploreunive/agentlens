@@ -102,6 +102,10 @@ def test_cli_supports_debug_inbox(tmp_path: Path):
     inbox = subprocess.run([sys.executable, 'cli.py', 'inbox'], cwd=work, capture_output=True, text=True)
     assert inbox.returncode == 0, inbox.stderr
     assert 'debug_inbox.md' in inbox.stdout
+    assert 'debug_inbox.html' in inbox.stdout
     report = work / 'artifacts' / 'debug_inbox.md'
+    html_report = work / 'artifacts' / 'debug_inbox.html'
     assert report.exists()
+    assert html_report.exists()
     assert 'AgentLens Debug Inbox' in report.read_text(encoding='utf-8')
+    assert 'AgentLens Debug Inbox' in html_report.read_text(encoding='utf-8')

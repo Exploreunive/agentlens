@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from bundle_export import export_bundle
-from debug_inbox import write_debug_inbox
+from debug_inbox import write_debug_inbox, write_debug_inbox_html
 from regression import BASELINE_DIR, build_regression_report, list_traces, load_baseline, save_baseline, summarize_regression, load_trace
 
 ROOT = Path(__file__).resolve().parent
@@ -86,8 +86,10 @@ def cmd_bundle_export(args: argparse.Namespace) -> int:
 
 
 def cmd_inbox(args: argparse.Namespace) -> int:
-    out = write_debug_inbox(limit=args.limit)
-    print(f'Wrote {out}')
+    markdown_out = write_debug_inbox(limit=args.limit)
+    html_out = write_debug_inbox_html(limit=args.limit)
+    print(f'Wrote {markdown_out}')
+    print(f'Wrote {html_out}')
     return 0
 
 

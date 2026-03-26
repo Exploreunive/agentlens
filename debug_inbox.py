@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -7,6 +8,7 @@ from regression import list_traces, load_trace
 from analyzer import summarize_run
 
 OUT = Path('artifacts/debug_inbox.md')
+HTML_OUT = Path('artifacts/debug_inbox.html')
 
 
 def collect_debug_inbox(limit: int = 10) -> List[Dict[str, Any]]:
@@ -60,8 +62,135 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
     return '\n'.join(lines)
 
 
+def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
+    if not items:
+        cards = '<div class="empty">No traces available.</div>'
+    else:
+        cards = ''.join(
+            f'''
+            <section class="card level-{html.escape(str(item.get("priority_level", "low")))}">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">Run #{index}</div>
+                  <h2>{html.escape(str(item.get("trace_file")))}</h2>
+                </div>
+                <div class="score">
+                  <span>{html.escape(str(item.get("priority_score", 0)))}</span>
+                  <small>{html.escape(str(item.get("priority_level", "low")))}</small>
+                </div>
+              </div>
+              <div class="meta">
+                <span>runtime: <strong>{html.escape(str(item.get("runtime") or "unknown"))}</strong></span>
+                <span>agent: <strong>{html.escape(str(item.get("agent_name") or "unknown"))}</strong></span>
+                <span>risk: <strong>{html.escape(str(item.get("answer_risk") or "unknown"))}</strong></span>
+                <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "none"))}</strong></span>
+              </div>
+              <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
+              <div class="columns">
+                <div>
+                  <h3>Priority reasons</h3>
+                  <ul>{"".join(f"<li>{html.escape(str(reason))}</li>" for reason in item.get("priority_reasons", [])) or "<li>No priority reasons recorded.</li>"}</ul>
+                </div>
+                <div>
+                  <h3>Suspicious signals</h3>
+                  <ul>{"".join(f"<li>{html.escape(str(signal.get('type')))} at event #{html.escape(str(signal.get('event_index')))}</li>" for signal in item.get("suspicious_signals", [])) or "<li>No suspicious signals detected.</li>"}</ul>
+                </div>
+              </div>
+            </section>
+            '''
+            for index, item in enumerate(items, start=1)
+        )
+
+    high_count = sum(1 for item in items if item.get('priority_level') == 'high')
+    medium_count = sum(1 for item in items if item.get('priority_level') == 'medium')
+    low_count = sum(1 for item in items if item.get('priority_level') == 'low')
+
+    return f'''<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AgentLens Debug Inbox</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+      --bg: #08111f;
+      --panel: #101b2d;
+      --panel-2: #0d1728;
+      --border: #23314a;
+      --text: #edf3fb;
+      --muted: #9cb0c8;
+      --high: #ff8a65;
+      --medium: #ffd166;
+      --low: #6dd3a0;
+      --accent: #7cc4ff;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: radial-gradient(circle at top, #10233f 0%, var(--bg) 55%); color: var(--text); }}
+    main {{ max-width: 1120px; margin: 0 auto; padding: 40px 24px 56px; }}
+    h1 {{ margin: 0; font-size: 40px; }}
+    p {{ color: var(--muted); line-height: 1.6; }}
+    .hero {{ display: grid; gap: 18px; margin-bottom: 28px; }}
+    .stats {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }}
+    .stat, .card {{ background: rgba(16, 27, 45, 0.88); border: 1px solid var(--border); border-radius: 18px; }}
+    .stat {{ padding: 18px; }}
+    .stat .label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
+    .stat .value {{ margin-top: 8px; font-size: 28px; font-weight: 700; }}
+    .stack {{ display: grid; gap: 16px; }}
+    .card {{ padding: 20px; }}
+    .card-head {{ display: flex; justify-content: space-between; gap: 16px; align-items: start; }}
+    .eyebrow {{ color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }}
+    .card h2 {{ margin: 0; font-size: 22px; word-break: break-word; }}
+    .score {{ min-width: 88px; border-radius: 16px; padding: 12px; text-align: center; background: var(--panel-2); border: 1px solid var(--border); }}
+    .score span {{ display: block; font-size: 28px; font-weight: 800; }}
+    .score small {{ color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }}
+    .meta {{ display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 16px 0 14px; color: var(--muted); }}
+    .answer {{ padding: 14px 16px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--border); line-height: 1.6; white-space: pre-wrap; }}
+    .columns {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }}
+    .columns h3 {{ margin: 0 0 10px; font-size: 14px; color: var(--accent); }}
+    ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}
+    li {{ margin: 8px 0; }}
+    .level-high .score {{ border-color: rgba(255, 138, 101, 0.55); }}
+    .level-medium .score {{ border-color: rgba(255, 209, 102, 0.55); }}
+    .level-low .score {{ border-color: rgba(109, 211, 160, 0.55); }}
+    .empty {{ padding: 28px; border-radius: 18px; background: rgba(16, 27, 45, 0.88); border: 1px solid var(--border); color: var(--muted); }}
+    @media (max-width: 800px) {{
+      .stats, .columns {{ grid-template-columns: 1fr; }}
+      .card-head {{ flex-direction: column; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div>
+        <h1>AgentLens Debug Inbox</h1>
+        <p>Recent traces ranked by debugging value, so the first thing you open is the run most likely to hide a real agent failure.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="label">Traces</div><div class="value">{len(items)}</div></div>
+        <div class="stat"><div class="label">High Priority</div><div class="value">{high_count}</div></div>
+        <div class="stat"><div class="label">Medium Priority</div><div class="value">{medium_count}</div></div>
+        <div class="stat"><div class="label">Low Priority</div><div class="value">{low_count}</div></div>
+      </div>
+    </section>
+    <section class="stack">
+      {cards}
+    </section>
+  </main>
+</body>
+</html>
+'''
+
+
 def write_debug_inbox(limit: int = 10) -> Path:
     items = collect_debug_inbox(limit=limit)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(build_debug_inbox_report(items), encoding='utf-8')
     return OUT
+
+
+def write_debug_inbox_html(limit: int = 10) -> Path:
+    items = collect_debug_inbox(limit=limit)
+    HTML_OUT.parent.mkdir(parents=True, exist_ok=True)
+    HTML_OUT.write_text(build_debug_inbox_html(items), encoding='utf-8')
+    return HTML_OUT
