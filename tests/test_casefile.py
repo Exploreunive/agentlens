@@ -47,6 +47,9 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
     assert '- owner: `unassigned`' in text
     assert 'artifacts/views/demo.html' in text
     assert 'artifacts/regressions/golden__demo.md' in text
+    assert '## Recheck Commands' in text
+    assert 'python3 cli.py regression check golden' in text
+    assert 'pytest -q' in text
     assert parse_case_status(tmp_path / out) == 'new'
     assert parse_case_metadata(tmp_path / out)['owner'] == 'unassigned'
 
@@ -172,6 +175,7 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'baseline regression' in html
     assert 'owner alice' in html
     assert 'Replay the wrong tool selection.' in html
+    assert 'recheck baseline + benchmark' in html
     assert 'Unresolved Regressions' in html
     assert 'Investigating Now' in html
     assert 'Unassigned High Priority' in html
@@ -340,3 +344,39 @@ def test_build_case_board_html_surfaces_unassigned_high_priority_focus():
     )
     assert 'Unassigned High Priority' in html
     assert '>1<' in html
+
+
+def test_write_case_index_adds_benchmark_recheck_when_baseline_exists(tmp_path: Path):
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        benchmark_baselines = Path('.agentlens/benchmark_baselines')
+        benchmark_baselines.mkdir(parents=True)
+        (benchmark_baselines / 'local-bench.json').write_text('[]\n', encoding='utf-8')
+        traces = Path('.agentlens/traces')
+        traces.mkdir(parents=True)
+        (traces / 'demo.jsonl').write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'run-123', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'run-123', 'type': 'run.end', 'payload': {'final_answer': 'ok'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        out = write_case_index(
+            trace_name='demo.jsonl',
+            trace_view_path='artifacts/views/demo.html',
+            final_answer='ok',
+            priority_level='high',
+            priority_score=90,
+            failure_mode='wrong_tool_selected',
+            baseline_name='golden',
+            regression_report_path='artifacts/regressions/golden__demo.md',
+        )
+    finally:
+        os.chdir(previous_cwd)
+
+    text = (tmp_path / out).read_text(encoding='utf-8')
+    assert '- benchmark_baseline: `local-bench`' in text
+    assert 'python3 cli.py bench check local-bench' in text
+    assert 'Re-run the benchmark gate against local-bench.' in text

@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
-from benchmark_report import collect_benchmark_gate_status
+from benchmark_report import collect_benchmark_gate_status, resolve_benchmark_baseline_name
 from bundle_export import export_bundle
 
 CASEFILES_DIR = Path('artifacts/cases')
@@ -37,6 +37,44 @@ def _suggest_next_step(
     if failure_mode and failure_mode != 'no_explicit_failure':
         return f'Open the trace view and confirm the first event that supports {failure_mode}.'
     return f'Open {trace_view_path} and verify whether the final answer is grounded in tool evidence.'
+
+
+def _recheck_commands(
+    *,
+    trace_name: str,
+    baseline_name: str | None,
+    benchmark_baseline_name: str | None,
+) -> list[str]:
+    stem = Path(trace_name).stem
+    commands = [
+        f'python3 cli.py view {stem}',
+        'python3 cli.py inbox' + (f' --baseline {baseline_name}' if baseline_name else ''),
+    ]
+    if baseline_name:
+        commands.append(f'python3 cli.py regression check {baseline_name}')
+    if benchmark_baseline_name:
+        commands.append(f'python3 cli.py bench check {benchmark_baseline_name}')
+    commands.append('pytest -q')
+    return commands
+
+
+def _repair_checklist_items(
+    *,
+    failure_mode: str | None,
+    regression_detected: bool,
+    benchmark_baseline_name: str | None,
+) -> list[str]:
+    items = ['Confirm the failure in the trace view.']
+    if regression_detected:
+        items.append('Compare the candidate run against the saved baseline and identify the first changed decision.')
+    if failure_mode and failure_mode != 'no_explicit_failure':
+        items.append(f'Write a targeted fix for {failure_mode} instead of broad heuristic changes.')
+    else:
+        items.append('Capture the first wrong decision or missing check before changing heuristics.')
+    if benchmark_baseline_name:
+        items.append(f'Re-run the benchmark gate against {benchmark_baseline_name}.')
+    items.append('Re-run the incident workflow and mark the case fixed only after the recheck commands are clean.')
+    return items
 
 
 def case_dir_path(trace_name: str) -> Path:
@@ -80,6 +118,7 @@ def write_case_index(
     existing = parse_case_metadata(out)
 
     bundle_path = export_bundle(trace_name, include_diff=True)
+    benchmark_baseline_name = resolve_benchmark_baseline_name()
     resolved_status = existing.get('status') or status
     if resolved_status not in VALID_CASE_STATUSES:
         resolved_status = DEFAULT_CASE_STATUS
@@ -105,6 +144,19 @@ def write_case_index(
         lines.append(f'- baseline_watch: `{baseline_name}`')
     if regression_report_path:
         lines.append(f'- regression_report: `{regression_report_path}`')
+    if benchmark_baseline_name:
+        lines.append(f'- benchmark_baseline: `{benchmark_baseline_name}`')
+
+    repair_items = _repair_checklist_items(
+        failure_mode=failure_mode,
+        regression_detected=bool(regression_report_path),
+        benchmark_baseline_name=benchmark_baseline_name,
+    )
+    recheck_commands = _recheck_commands(
+        trace_name=trace_name,
+        baseline_name=baseline_name,
+        benchmark_baseline_name=benchmark_baseline_name,
+    )
 
     lines += [
         '',
@@ -114,10 +166,14 @@ def write_case_index(
         '- Mark `fixed` only after the benchmark gate and regression watch are clean.',
         '',
         '## Repair Checklist',
-        '- [ ] Confirm the failure in the trace view.',
-        '- [ ] Capture the first wrong decision or missing check.',
-        '- [ ] Propose or land a fix.',
-        '- [ ] Re-run the relevant scenario and benchmark gate.',
+    ]
+    lines.extend(f'- [ ] {item}' for item in repair_items)
+    lines += [
+        '',
+        '## Recheck Commands',
+    ]
+    lines.extend(f'- `{command}`' for command in recheck_commands)
+    lines += [
         '',
         '## Share Checklist',
         '- Open the trace view first.',
@@ -328,6 +384,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
           <div class="mini-meta">status {html.escape(str(item.get("case_status") or DEFAULT_CASE_STATUS))} · priority {html.escape(str(item.get("priority_score", 0)))} · {'baseline regression' if item.get('regression_detected') else 'incident review'}</div>
           <div class="mini-meta">owner {html.escape(str(item.get("case_owner") or DEFAULT_CASE_OWNER))}</div>
           <div class="mini-meta">{html.escape(str(item.get("case_next_step") or "No next step recorded yet."))}</div>
+          <div class="mini-meta">recheck {'baseline + benchmark' if item.get('regression_detected') else 'trace + inbox'}</div>
         </div>
         '''
         for item in action_queue

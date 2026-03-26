@@ -237,6 +237,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - recurring issue leaderboard with regressions, unresolved count, and average priority
 - an action queue that lifts unresolved baseline regressions to the top
 - focus views for unresolved regressions, in-progress incidents, and unassigned high-priority cases
+- per-case repair checklists and recheck commands so fixes can be verified against baselines and benchmark gates
 
 The trace viewer now also highlights:
 - the **first suspicious step**
