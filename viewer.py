@@ -187,6 +187,8 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     ) or '<li>No model turns recorded</li>'
     evidence_items = ''.join(f'<li>{html.escape(str(e))}</li>' for e in card.get('evidence', []))
     inspect_items = ''.join(f'<li>{html.escape(str(i))}</li>' for i in card.get('inspect_next', []))
+    story_items = ''.join(f'<li>{html.escape(str(line))}</li>' for line in card.get('debug_story', []))
+    counterfactual_items = ''.join(f'<li>{html.escape(str(line))}</li>' for line in card.get('counterfactual_hints', []))
     chain_items = ''.join(
         f"<li>#{html.escape(str(step.get('event_index')))} · {html.escape(str(step.get('kind')))} · {html.escape(str(step.get('label')))}</li>"
         for step in summary.get('failure_chain', [])
@@ -204,6 +206,10 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     runtime_label = html.escape(str(summary.get('runtime') or 'unknown'))
     agent_name = html.escape(str(summary.get('agent_name') or 'unknown'))
     answer_alignment = summary.get('answer_alignment', {})
+    debug_priority = summary.get('debug_priority', {})
+    priority_score = html.escape(str(debug_priority.get('score', 0)))
+    priority_level = html.escape(str(debug_priority.get('level', 'low')))
+    priority_reasons = ''.join(f'<li>{html.escape(str(line))}</li>' for line in debug_priority.get('reasons', []))
     alignment_status = html.escape(str(answer_alignment.get('status', 'unknown')))
     alignment_reason = html.escape(str(answer_alignment.get('reason', 'No answer/evidence review available.')))
     matching_terms = ', '.join(answer_alignment.get('matching_terms', [])) or 'none'
@@ -242,6 +248,7 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     .stat-value {{ font-size:24px; font-weight:700; color:#f8fafc; }}
     .trace-controls {{ display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin:0 0 18px; }}
     .overview {{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:0 0 18px; }}
+    .priority-panel {{ margin:0 0 18px; }}
     .review-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0 0 18px; }}
     .panel {{ background:#121a2b; border:1px solid #283043; border-radius:14px; padding:14px; }}
     .summary-line {{ color:#d6deeb; margin-top:10px; font-size:14px; }}
@@ -310,7 +317,17 @@ def build_html(events: List[Dict[str, Any]]) -> str:
       <ul>{tool_evidence_items}</ul>
     </div>
   </div>
+  <div class="panel priority-panel">
+    <h2>debug priority</h2>
+    <div class="summary-line">score: <strong>{priority_score}/100</strong></div>
+    <div class="summary-line">level: <strong>{priority_level}</strong></div>
+    <ul>{priority_reasons}</ul>
+  </div>
   <div class="review-grid">
+    <div class="panel">
+      <h2>debug story</h2>
+      <ul>{story_items}</ul>
+    </div>
     <div class="panel">
       <h2>answer vs evidence</h2>
       <div class="summary-line">status: <strong>{alignment_status}</strong></div>
@@ -328,6 +345,10 @@ def build_html(events: List[Dict[str, Any]]) -> str:
         <li>Catch cases where the model called a tool but still answered from stale reasoning.</li>
         <li>Review each turn in order instead of mentally reconstructing the trajectory from raw events.</li>
       </ul>
+    </div>
+    <div class="panel">
+      <h2>counterfactual hints</h2>
+      <ul>{counterfactual_items}</ul>
     </div>
   </div>
   <div class="panel">

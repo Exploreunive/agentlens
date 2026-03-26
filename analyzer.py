@@ -125,6 +125,58 @@ def _summarize_answer_alignment(final_answer: Optional[str], tool_evidence: List
     }
 
 
+def _compute_debug_priority(summary: Dict[str, Any]) -> Dict[str, Any]:
+    score = 0
+    reasons: List[str] = []
+
+    suspicious = summary.get('suspicious_signals', [])
+    if suspicious:
+        score += 45
+        reasons.append('Suspicious signals were emitted during the run.')
+
+    answer_risk = summary.get('answer_risk')
+    if answer_risk == 'visible_failure':
+        score += 30
+        reasons.append('The final answer looks visibly degraded.')
+    elif answer_risk == 'hidden_degradation':
+        score += 20
+        reasons.append('The run may be degraded even though the final answer still looks plausible.')
+
+    alignment = (summary.get('answer_alignment') or {}).get('status')
+    if alignment in {'unclear', 'needs_review'}:
+        score += 20
+        reasons.append('Answer grounding against tool evidence is weak or unclear.')
+    elif alignment == 'no_tool_evidence':
+        score += 10
+        reasons.append('No external evidence was captured, so confidence should stay low.')
+
+    turn_count = len(summary.get('turns', []))
+    if turn_count >= 3:
+        score += 10
+        reasons.append('The run spans multiple model turns, so debugging cost is higher.')
+
+    if summary.get('memory_influence'):
+        score += 5
+        reasons.append('Memory influenced the run, which increases the chance of hidden failure modes.')
+
+    score = min(score, 100)
+    if score >= 70:
+        level = 'high'
+    elif score >= 35:
+        level = 'medium'
+    else:
+        level = 'low'
+
+    if not reasons:
+        reasons.append('No strong failure signals were detected, so this run is lower priority for manual review.')
+
+    return {
+        'score': score,
+        'level': level,
+        'reasons': reasons[:4],
+    }
+
+
 def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         'final_answer': None,
@@ -143,6 +195,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         'runtime': 'unknown',
         'agent_name': None,
         'answer_alignment': {},
+        'debug_priority': {},
     }
 
     latest_recall: Optional[Dict[str, Any]] = None
@@ -392,6 +445,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     summary['answer_risk'] = _extract_answer_risk(summary['final_answer'], summary['suspicious_signals'])
     summary['answer_alignment'] = _summarize_answer_alignment(summary['final_answer'], summary['tool_evidence'])
+    summary['debug_priority'] = _compute_debug_priority(summary)
     return summary
 
 

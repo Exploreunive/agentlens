@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from bundle_export import export_bundle
+from debug_inbox import write_debug_inbox
 from regression import BASELINE_DIR, build_regression_report, list_traces, load_baseline, save_baseline, summarize_regression, load_trace
 
 ROOT = Path(__file__).resolve().parent
@@ -84,6 +85,12 @@ def cmd_bundle_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_inbox(args: argparse.Namespace) -> int:
+    out = write_debug_inbox(limit=args.limit)
+    print(f'Wrote {out}')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -137,6 +144,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_bundle_export.add_argument('trace', nargs='?', default='latest', help='trace file, trace stem, or `latest`')
     p_bundle_export.add_argument('--no-diff', action='store_true', help='skip adding a divergence report to the bundle')
     p_bundle_export.set_defaults(func=cmd_bundle_export)
+
+    p_inbox = sub.add_parser('inbox', help='rank recent traces by debug priority')
+    p_inbox.add_argument('--limit', type=int, default=10, help='how many recent traces to include')
+    p_inbox.set_defaults(func=cmd_inbox)
 
     return parser
 

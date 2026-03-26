@@ -84,3 +84,16 @@ def test_summarize_run_extracts_langgraph_tool_evidence_and_turns():
     assert any(turn['kind'] == 'llm_response' for turn in summary['model_turns'])
     assert summary['turns'][0]['tool_calls'][0]['tool_name'] == 'weather_snapshot'
     assert summary['answer_alignment']['status'] == 'aligned'
+    assert summary['debug_priority']['level'] in {'low', 'medium'}
+
+
+def test_summarize_run_assigns_high_debug_priority_for_suspicious_failure():
+    events = [
+        {'type': 'run.start', 'payload': {'runtime': 'langgraph'}},
+        {'type': 'tool.result', 'payload': {'content': 'Shanghai: rain'}},
+        {'type': 'error', 'payload': {'kind': 'memory_conflict', 'message': 'conflicts with tool evidence'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'Jog is fine.'}},
+    ]
+    summary = summarize_run(events)
+    assert summary['debug_priority']['level'] == 'high'
+    assert summary['debug_priority']['score'] >= 70

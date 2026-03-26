@@ -90,3 +90,18 @@ def test_cli_supports_bundle_export(tmp_path: Path):
     bundle = subprocess.run([sys.executable, 'cli.py', 'bundle', 'export'], cwd=work, capture_output=True, text=True)
     assert bundle.returncode == 0, bundle.stderr
     assert 'artifacts/bundles' in bundle.stdout
+
+
+def test_cli_supports_debug_inbox(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'divergent'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+    assert 'debug_inbox.md' in inbox.stdout
+    report = work / 'artifacts' / 'debug_inbox.md'
+    assert report.exists()
+    assert 'AgentLens Debug Inbox' in report.read_text(encoding='utf-8')

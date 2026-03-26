@@ -24,6 +24,7 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert 'total latency' in html
     assert 'input tokens' in html
     assert 'tool calls' in html
+    assert 'debug priority' in html
     assert '<strong>event counts</strong>' in html
     assert 'first suspicious step' in html
     assert 'likely failure step' in html
@@ -39,6 +40,8 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert '<strong>failure chain</strong>' in html
     assert 'answer vs evidence' in html
     assert 'turn timeline' in html
+    assert 'debug story' in html
+    assert 'counterfactual hints' in html
 
 
 def test_viewer_contains_runtime_overview_for_langgraph_like_trace():
@@ -55,10 +58,13 @@ def test_viewer_contains_runtime_overview_for_langgraph_like_trace():
     assert 'runtime overview' in html
     assert 'model turns' in html
     assert 'tool evidence' in html
+    assert 'debug priority' in html
     assert 'langgraph' in html
     assert 'weather_snapshot' in html
     assert 'answer vs evidence' in html
     assert 'Turn 1' in html
+    assert 'debug story' in html
+    assert 'counterfactual hints' in html
 
 
 def test_load_latest_trace_prefers_most_recent_file(tmp_path: Path):
