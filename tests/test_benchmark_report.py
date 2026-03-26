@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from benchmark_report import build_benchmark_regression_report, build_benchmark_report, collect_benchmark_cases, save_benchmark_baseline, write_benchmark_regression_report, write_benchmark_report
+from benchmark_report import build_benchmark_regression_report, build_benchmark_regression_summary, build_benchmark_report, collect_benchmark_cases, save_benchmark_baseline, summarize_benchmark_coverage, write_benchmark_regression_report, write_benchmark_report
 
 
 def test_collect_benchmark_cases_loads_fixture_summaries():
@@ -72,6 +72,23 @@ def test_build_benchmark_regression_report_detects_coverage_drop():
     assert 'coverage_before: `matched`' in report
     assert 'coverage_after: `partial`' in report
     assert '- regressions: `1`' in report
+
+
+def test_benchmark_summary_helpers_capture_coverage_and_regressions():
+    coverage = summarize_benchmark_coverage([
+        {'coverage_status': 'matched'},
+        {'coverage_status': 'partial'},
+        {'coverage_status': 'missed'},
+    ])
+    summary = build_benchmark_regression_summary(
+        'golden',
+        [{'fixture': 'wrong_tool_selected.jsonl', 'coverage_status': 'matched', 'fingerprint': 'wrong-tool-selected'}],
+        [{'fixture': 'wrong_tool_selected.jsonl', 'coverage_status': 'partial', 'fingerprint': 'wrong-tool-selected'}],
+    )
+    assert coverage == {'fixtures': 3, 'matched': 1, 'partial': 1, 'missed': 1}
+    assert summary['baseline_name'] == 'golden'
+    assert summary['regressions'] == 1
+    assert summary['regressed_fixtures'][0]['fixture'] == 'wrong_tool_selected.jsonl'
 
 
 def test_save_and_check_benchmark_baseline_round_trip(tmp_path: Path):

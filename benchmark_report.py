@@ -86,18 +86,99 @@ def collect_benchmark_cases() -> list[dict[str, Any]]:
     return items
 
 
+def summarize_benchmark_coverage(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        'fixtures': len(items),
+        'matched': sum(1 for item in items if item.get('coverage_status') == 'matched'),
+        'partial': sum(1 for item in items if item.get('coverage_status') == 'partial'),
+        'missed': sum(1 for item in items if item.get('coverage_status') == 'missed'),
+    }
+
+
+def build_benchmark_regression_summary(
+    baseline_name: str,
+    baseline_items: list[dict[str, Any]],
+    current_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    baseline_by_fixture = {item['fixture']: item for item in baseline_items}
+    current_by_fixture = {item['fixture']: item for item in current_items}
+    regressions: list[dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
+
+    for fixture in sorted(set(baseline_by_fixture) | set(current_by_fixture)):
+        before = baseline_by_fixture.get(fixture, {})
+        after = current_by_fixture.get(fixture, {})
+        before_status = before.get('coverage_status', 'missing')
+        after_status = after.get('coverage_status', 'missing')
+        detail = {
+            'fixture': fixture,
+            'baseline': baseline_name,
+            'coverage_before': before_status,
+            'coverage_after': after_status,
+            'fingerprint_before': before.get('fingerprint'),
+            'fingerprint_after': after.get('fingerprint'),
+        }
+        details.append(detail)
+        if before_status == 'matched' and after_status != 'matched':
+            regressions.append(detail)
+
+    return {
+        'baseline_name': baseline_name,
+        'regressions': len(regressions),
+        'regressed_fixtures': regressions,
+        'details': details,
+    }
+
+
+def resolve_benchmark_baseline_name(name: str | None = None) -> str | None:
+    if name:
+        return name
+    baselines = sorted(BASELINE_DIR.glob('*.json'), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not baselines:
+        return None
+    return baselines[0].stem
+
+
+def collect_benchmark_gate_status(name: str | None = None) -> dict[str, Any]:
+    current_items = collect_benchmark_cases()
+    coverage = summarize_benchmark_coverage(current_items)
+    baseline_name = resolve_benchmark_baseline_name(name)
+    gate: dict[str, Any] = {
+        'coverage': coverage,
+        'baseline_name': baseline_name,
+        'report_path': str(OUT_MD) if OUT_MD.exists() else None,
+        'html_report_path': str(OUT_HTML) if OUT_HTML.exists() else None,
+        'regression_report_path': None,
+        'regressions': 0,
+        'regressed_fixtures': [],
+        'details': [],
+    }
+    if not baseline_name:
+        return gate
+
+    summary = build_benchmark_regression_summary(
+        baseline_name,
+        load_benchmark_baseline(baseline_name),
+        current_items,
+    )
+    gate.update(summary)
+    if REGRESSION_MD.exists():
+        gate['regression_report_path'] = str(REGRESSION_MD)
+    return gate
+
+
 def build_benchmark_report(items: list[dict[str, Any]]) -> str:
     lines = ['# AgentLens Benchmark Coverage Report', '']
     if not items:
         lines.append('No benchmark fixtures found.')
         return '\n'.join(lines) + '\n'
 
-    matched = sum(1 for item in items if item.get('coverage_status') == 'matched')
-    partial = sum(1 for item in items if item.get('coverage_status') == 'partial')
-    missed = sum(1 for item in items if item.get('coverage_status') == 'missed')
+    coverage = summarize_benchmark_coverage(items)
 
     lines.append('Public benchmark-inspired failure fixtures currently recognized by AgentLens.')
-    lines.append(f'- coverage_summary: matched={matched} partial={partial} missed={missed}')
+    lines.append(
+        f"- coverage_summary: matched={coverage['matched']} partial={coverage['partial']} missed={coverage['missed']}"
+    )
     lines.append('')
     for item in items:
         lines.append(f"## `{item['fixture']}`")
@@ -119,9 +200,7 @@ def build_benchmark_report(items: list[dict[str, Any]]) -> str:
 
 
 def build_benchmark_report_html(items: list[dict[str, Any]]) -> str:
-    matched = sum(1 for item in items if item.get('coverage_status') == 'matched')
-    partial = sum(1 for item in items if item.get('coverage_status') == 'partial')
-    missed = sum(1 for item in items if item.get('coverage_status') == 'missed')
+    coverage = summarize_benchmark_coverage(items)
     cards = ''.join(
         f'''
         <section class="card level-{html.escape(str(item.get("priority_level") or "low"))} coverage-{html.escape(str(item.get("coverage_status") or "unknown"))}">
@@ -190,9 +269,9 @@ def build_benchmark_report_html(items: list[dict[str, Any]]) -> str:
     <h1>AgentLens Benchmark Coverage</h1>
     <p>How AgentLens currently interprets public benchmark-inspired agent failure fixtures.</p>
     <div class="summary">
-      <div class="stat"><div class="stat-label">Matched</div><div class="stat-value">{matched}</div></div>
-      <div class="stat"><div class="stat-label">Partial</div><div class="stat-value">{partial}</div></div>
-      <div class="stat"><div class="stat-label">Missed</div><div class="stat-value">{missed}</div></div>
+      <div class="stat"><div class="stat-label">Matched</div><div class="stat-value">{coverage["matched"]}</div></div>
+      <div class="stat"><div class="stat-label">Partial</div><div class="stat-value">{coverage["partial"]}</div></div>
+      <div class="stat"><div class="stat-label">Missed</div><div class="stat-value">{coverage["missed"]}</div></div>
     </div>
     <div class="stack">{cards}</div>
   </main>
@@ -225,25 +304,17 @@ def load_benchmark_baseline(name: str) -> list[dict[str, Any]]:
 
 
 def build_benchmark_regression_report(baseline_name: str, baseline_items: list[dict[str, Any]], current_items: list[dict[str, Any]]) -> str:
-    baseline_by_fixture = {item['fixture']: item for item in baseline_items}
-    current_by_fixture = {item['fixture']: item for item in current_items}
+    summary = build_benchmark_regression_summary(baseline_name, baseline_items, current_items)
     lines = ['# AgentLens Benchmark Regression Report', '']
-    regressions = 0
-    for fixture in sorted(set(baseline_by_fixture) | set(current_by_fixture)):
-        before = baseline_by_fixture.get(fixture, {})
-        after = current_by_fixture.get(fixture, {})
-        before_status = before.get('coverage_status', 'missing')
-        after_status = after.get('coverage_status', 'missing')
-        if before_status == 'matched' and after_status != 'matched':
-            regressions += 1
-        lines.append(f"## `{fixture}`")
-        lines.append(f"- baseline: `{baseline_name}`")
-        lines.append(f"- coverage_before: `{before_status}`")
-        lines.append(f"- coverage_after: `{after_status}`")
-        lines.append(f"- fingerprint_before: `{before.get('fingerprint')}`")
-        lines.append(f"- fingerprint_after: `{after.get('fingerprint')}`")
+    for item in summary['details']:
+        lines.append(f"## `{item['fixture']}`")
+        lines.append(f"- baseline: `{item['baseline']}`")
+        lines.append(f"- coverage_before: `{item['coverage_before']}`")
+        lines.append(f"- coverage_after: `{item['coverage_after']}`")
+        lines.append(f"- fingerprint_before: `{item['fingerprint_before']}`")
+        lines.append(f"- fingerprint_after: `{item['fingerprint_after']}`")
         lines.append('')
-    lines.insert(2, f'- regressions: `{regressions}`')
+    lines.insert(2, f"- regressions: `{summary['regressions']}`")
     return '\n'.join(lines)
 
 

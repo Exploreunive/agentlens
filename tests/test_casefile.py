@@ -42,30 +42,43 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
 
 
 def test_build_case_board_html_contains_summary_cards():
-    html = build_case_board_html([
-        {
-            'trace_file': 'run-a.jsonl',
-            'trace_recency_rank': 1,
-            'priority_score': 90,
-            'priority_level': 'high',
-            'failure_mode': 'memory_vs_tool_conflict',
-            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'memory_conflict|memory_involved'},
-            'answer_risk': 'hidden_degradation',
-            'final_answer': 'Jog is fine.',
-            'regression_detected': True,
-            'case_status': 'investigating',
-            'case_index_path': 'artifacts/cases/run-a/README.md',
-            'trace_view_path': 'artifacts/views/run-a.html',
-            'regression_report_path': 'artifacts/regressions/golden__run-a.md',
-        }
-    ])
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 90,
+                'priority_level': 'high',
+                'failure_mode': 'memory_vs_tool_conflict',
+                'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'memory_conflict|memory_involved'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'Jog is fine.',
+                'regression_detected': True,
+                'case_status': 'investigating',
+                'case_index_path': 'artifacts/cases/run-a/README.md',
+                'trace_view_path': 'artifacts/views/run-a.html',
+                'regression_report_path': 'artifacts/regressions/golden__run-a.md',
+            }
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 5, 'partial': 0, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 0,
+            'regressed_fixtures': [],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
+        },
+    )
     assert 'AgentLens Incident Board' in html
     assert 'Recurring Issue Leaderboard' in html
     assert 'Trend Watch' in html
+    assert 'Benchmark Gate' in html
+    assert 'local-bench' in html
     assert 'memory-vs-tool-conflict' in html
     assert 'status mix: investigating=1' in html.lower()
     assert 'cases 1' in html
     assert 'unresolved 1' in html
+    assert 'matched 5' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -98,69 +111,88 @@ def test_write_case_board_creates_index(tmp_path: Path):
 
 
 def test_build_case_board_html_marks_rising_fingerprint():
-    html = build_case_board_html([
-        {
-            'trace_file': 'recent-a.jsonl',
-            'trace_recency_rank': 1,
-            'priority_score': 90,
-            'priority_level': 'high',
-            'failure_mode': 'memory_vs_tool_conflict',
-            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'a'},
-            'answer_risk': 'hidden_degradation',
-            'final_answer': 'Jog is fine.',
-            'regression_detected': True,
-            'case_status': 'new',
-            'case_index_path': 'artifacts/cases/recent-a/README.md',
-            'trace_view_path': 'artifacts/views/recent-a.html',
-            'regression_report_path': 'artifacts/regressions/golden__recent-a.md',
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'recent-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 90,
+                'priority_level': 'high',
+                'failure_mode': 'memory_vs_tool_conflict',
+                'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'a'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'Jog is fine.',
+                'regression_detected': True,
+                'case_status': 'new',
+                'case_index_path': 'artifacts/cases/recent-a/README.md',
+                'trace_view_path': 'artifacts/views/recent-a.html',
+                'regression_report_path': 'artifacts/regressions/golden__recent-a.md',
+            },
+            {
+                'trace_file': 'recent-b.jsonl',
+                'trace_recency_rank': 2,
+                'priority_score': 70,
+                'priority_level': 'high',
+                'failure_mode': 'memory_vs_tool_conflict',
+                'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'b'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'Jog is fine.',
+                'regression_detected': True,
+                'case_status': 'new',
+                'case_index_path': 'artifacts/cases/recent-b/README.md',
+                'trace_view_path': 'artifacts/views/recent-b.html',
+                'regression_report_path': 'artifacts/regressions/golden__recent-b.md',
+            },
+            {
+                'trace_file': 'older-a.jsonl',
+                'trace_recency_rank': 3,
+                'priority_score': 10,
+                'priority_level': 'low',
+                'failure_mode': 'no_explicit_failure',
+                'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'c'},
+                'answer_risk': 'no_explicit_risk_found',
+                'final_answer': 'ok',
+                'regression_detected': False,
+                'case_status': 'fixed',
+                'case_index_path': 'artifacts/cases/older-a/README.md',
+                'trace_view_path': 'artifacts/views/older-a.html',
+                'regression_report_path': None,
+            },
+            {
+                'trace_file': 'older-b.jsonl',
+                'trace_recency_rank': 4,
+                'priority_score': 10,
+                'priority_level': 'low',
+                'failure_mode': 'no_explicit_failure',
+                'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'd'},
+                'answer_risk': 'no_explicit_risk_found',
+                'final_answer': 'ok',
+                'regression_detected': False,
+                'case_status': 'fixed',
+                'case_index_path': 'artifacts/cases/older-b/README.md',
+                'trace_view_path': 'artifacts/views/older-b.html',
+                'regression_report_path': None,
+            },
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 4, 'partial': 1, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 1,
+            'regressed_fixtures': [
+                {
+                    'fixture': 'wrong_tool_selected.jsonl',
+                    'coverage_before': 'matched',
+                    'coverage_after': 'partial',
+                }
+            ],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
         },
-        {
-            'trace_file': 'recent-b.jsonl',
-            'trace_recency_rank': 2,
-            'priority_score': 70,
-            'priority_level': 'high',
-            'failure_mode': 'memory_vs_tool_conflict',
-            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'b'},
-            'answer_risk': 'hidden_degradation',
-            'final_answer': 'Jog is fine.',
-            'regression_detected': True,
-            'case_status': 'new',
-            'case_index_path': 'artifacts/cases/recent-b/README.md',
-            'trace_view_path': 'artifacts/views/recent-b.html',
-            'regression_report_path': 'artifacts/regressions/golden__recent-b.md',
-        },
-        {
-            'trace_file': 'older-a.jsonl',
-            'trace_recency_rank': 3,
-            'priority_score': 10,
-            'priority_level': 'low',
-            'failure_mode': 'no_explicit_failure',
-            'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'c'},
-            'answer_risk': 'no_explicit_risk_found',
-            'final_answer': 'ok',
-            'regression_detected': False,
-            'case_status': 'fixed',
-            'case_index_path': 'artifacts/cases/older-a/README.md',
-            'trace_view_path': 'artifacts/views/older-a.html',
-            'regression_report_path': None,
-        },
-        {
-            'trace_file': 'older-b.jsonl',
-            'trace_recency_rank': 4,
-            'priority_score': 10,
-            'priority_level': 'low',
-            'failure_mode': 'no_explicit_failure',
-            'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'd'},
-            'answer_risk': 'no_explicit_risk_found',
-            'final_answer': 'ok',
-            'regression_detected': False,
-            'case_status': 'fixed',
-            'case_index_path': 'artifacts/cases/older-b/README.md',
-            'trace_view_path': 'artifacts/views/older-b.html',
-            'regression_report_path': None,
-        },
-    ])
+    )
     assert 'recent 2' in html
     assert 'older 0' in html
     assert 'rising' in html
     assert 'avg priority 80' in html
+    assert 'wrong_tool_selected.jsonl' in html
+    assert 'coverage matched -&gt; partial' not in html
+    assert 'coverage matched -> partial' in html

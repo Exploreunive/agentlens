@@ -5,6 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
+from benchmark_report import collect_benchmark_gate_status
 from bundle_export import export_bundle
 
 CASEFILES_DIR = Path('artifacts/cases')
@@ -70,7 +71,7 @@ def parse_case_status(case_index_path: str | Path) -> str:
     return DEFAULT_CASE_STATUS
 
 
-def build_case_board_html(items: list[dict[str, Any]]) -> str:
+def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[dict[str, Any]] = None) -> str:
     regressions = [item for item in items if item.get('regression_detected')]
     top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
     statuses = Counter((item.get('case_status') or DEFAULT_CASE_STATUS) for item in items)
@@ -143,6 +144,21 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
         '''
         for label, recent_count, older_count, _delta, direction in trend_rows[:6]
     ) or '<div class="empty">No trend data yet.</div>'
+    gate = benchmark_gate or {}
+    coverage = gate.get('coverage') or {}
+    regressed_fixtures = gate.get('regressed_fixtures') or []
+    gate_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">Benchmark Regression</div>
+          <div class="mini-value">{html.escape(str(item.get("fixture")))}</div>
+          <div class="mini-meta">coverage {html.escape(str(item.get("coverage_before")))} -> {html.escape(str(item.get("coverage_after")))}</div>
+        </div>
+        '''
+        for item in regressed_fixtures[:4]
+    )
+    if not gate_cards:
+        gate_cards = '<div class="empty">No benchmark regressions currently detected.</div>'
 
     case_cards = ''.join(
         f'''
@@ -202,6 +218,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
     .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
     .stat-value {{ margin-top: 8px; font-size: 28px; font-weight: 800; }}
     .layout {{ display: grid; grid-template-columns: 1.1fr 1.1fr 1.8fr; gap: 16px; }}
+    .gate-layout {{ display: grid; grid-template-columns: 1.1fr 2.9fr; gap: 16px; margin-top: 16px; }}
     .section {{ padding: 18px; }}
     .mini-grid {{ display: grid; gap: 12px; }}
     .mini-card {{ padding: 14px; }}
@@ -223,7 +240,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
     .level-low .score {{ border-color: rgba(109, 211, 160, 0.55); }}
     .empty {{ color: var(--muted); }}
     @media (max-width: 900px) {{
-      .stats, .layout {{ grid-template-columns: 1fr; }}
+      .stats, .layout, .gate-layout {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -252,13 +269,42 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
         <p>Which failure fingerprints are rising in the most recent runs.</p>
         <div class="mini-grid">{trend_cards}</div>
       </div>
-      <div class="section">
-        <h2>Top Cases</h2>
-        <p>Start with the highest-value incidents first, especially baseline regressions.</p>
-        <p>Status mix: {html.escape(', '.join(f'{key}={value}' for key, value in sorted(statuses.items())) or 'none')}</p>
-        <div class="case-stack">{case_cards}</div>
-      </div>
-    </section>
+        <div class="section">
+          <h2>Top Cases</h2>
+          <p>Start with the highest-value incidents first, especially baseline regressions.</p>
+          <p>Status mix: {html.escape(', '.join(f'{key}={value}' for key, value in sorted(statuses.items())) or 'none')}</p>
+          <div class="case-stack">{case_cards}</div>
+        </div>
+      </section>
+      <section class="gate-layout">
+        <div class="section">
+          <h2>Benchmark Gate</h2>
+          <p>Regression-proof detection matters. Keep benchmark coverage visible on the same reliability homepage.</p>
+          <div class="mini-grid">
+            <div class="mini-card">
+              <div class="mini-label">Coverage</div>
+              <div class="mini-value">matched {html.escape(str(coverage.get('matched', 0)))}</div>
+              <div class="mini-meta">partial {html.escape(str(coverage.get('partial', 0)))} · missed {html.escape(str(coverage.get('missed', 0)))}</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">Regression Gate</div>
+              <div class="mini-value">{html.escape(str(gate.get('regressions', 0)))} regressions</div>
+              <div class="mini-meta">baseline {html.escape(str(gate.get('baseline_name') or 'not configured'))}</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">Reports</div>
+              <div class="mini-value">{html.escape(str(coverage.get('fixtures', 0)))} fixtures</div>
+              <div class="mini-meta">coverage {html.escape(str(gate.get('report_path') or 'n/a'))}</div>
+              <div class="mini-meta">regression {html.escape(str(gate.get('regression_report_path') or 'n/a'))}</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>Regression Watchlist</h2>
+          <p>The fixtures that slipped from matched coverage and should block confidence in new agent changes.</p>
+          <div class="mini-grid">{gate_cards}</div>
+        </div>
+      </section>
   </main>
 </body>
 </html>
@@ -267,5 +313,5 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
 
 def write_case_board(items: list[dict[str, Any]]) -> Path:
     CASEFILES_DIR.mkdir(parents=True, exist_ok=True)
-    CASE_BOARD_OUT.write_text(build_case_board_html(items), encoding='utf-8')
+    CASE_BOARD_OUT.write_text(build_case_board_html(items, benchmark_gate=collect_benchmark_gate_status()), encoding='utf-8')
     return CASE_BOARD_OUT
