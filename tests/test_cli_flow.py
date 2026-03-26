@@ -157,3 +157,19 @@ def test_cli_inbox_supports_baseline_watch(tmp_path: Path):
     assert 'Active baseline: `golden-run`.' in report.read_text(encoding='utf-8')
     assert 'Baseline watch: golden-run' in html_report.read_text(encoding='utf-8')
     assert any(regression_reports_dir.glob('golden-run__*.md'))
+
+
+def test_cli_supports_benchmark_report(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    report = subprocess.run([sys.executable, 'cli.py', 'bench', 'report'], cwd=work, capture_output=True, text=True)
+    assert report.returncode == 0, report.stderr
+    assert 'benchmark_report.md' in report.stdout
+    assert 'benchmark_report.html' in report.stdout
+
+    md_file = work / 'artifacts' / 'benchmark_report.md'
+    html_file = work / 'artifacts' / 'benchmark_report.html'
+    assert md_file.exists()
+    assert html_file.exists()
+    assert 'AgentLens Benchmark Coverage Report' in md_file.read_text(encoding='utf-8')

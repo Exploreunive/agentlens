@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from benchmark_report import write_benchmark_report
 from bundle_export import export_bundle
 from debug_inbox import write_debug_inbox, write_debug_inbox_html
 from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
@@ -93,6 +94,13 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench_report(_: argparse.Namespace) -> int:
+    md_out, html_out = write_benchmark_report()
+    print(f'Wrote {md_out}')
+    print(f'Wrote {html_out}')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -152,6 +160,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_inbox.add_argument('--limit', type=int, default=10, help='how many recent traces to include')
     p_inbox.add_argument('--baseline', help='optional saved baseline name to watch for regressions')
     p_inbox.set_defaults(func=cmd_inbox)
+
+    p_bench = sub.add_parser('bench', help='benchmark-inspired fixture coverage tools')
+    bench_sub = p_bench.add_subparsers(dest='bench_command', required=True)
+    p_bench_report = bench_sub.add_parser('report', help='render benchmark fixture coverage reports')
+    p_bench_report.set_defaults(func=cmd_bench_report)
 
     return parser
 
