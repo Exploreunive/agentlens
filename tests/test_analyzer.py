@@ -82,3 +82,5 @@ def test_summarize_run_extracts_langgraph_tool_evidence_and_turns():
     assert summary['tool_evidence'][0]['tool_name'] == 'weather_snapshot'
     assert summary['tool_evidence'][0]['content'] == 'Shanghai: rain'
     assert any(turn['kind'] == 'llm_response' for turn in summary['model_turns'])
+    assert summary['turns'][0]['tool_calls'][0]['tool_name'] == 'weather_snapshot'
+    assert summary['answer_alignment']['status'] == 'aligned'

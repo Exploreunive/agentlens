@@ -10,6 +10,20 @@ ERROR_TYPES = {
     'llm_error',
 }
 
+WEATHER_KEYWORDS = {
+    'rain',
+    'rainy',
+    'sunny',
+    'cloudy',
+    'storm',
+    'stormy',
+    'snow',
+    'snowy',
+    'indoor',
+    'treadmill',
+    'outdoor',
+}
+
 
 def _tool_result_by_call_span(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     mapping: Dict[str, Dict[str, Any]] = {}
@@ -33,6 +47,84 @@ def _extract_answer_risk(final_answer: Optional[str], suspicious_signals: List[D
     return 'hidden_degradation'
 
 
+def _extract_keywords(value: Any) -> set[str]:
+    text = str(value or '').lower()
+    return {keyword for keyword in WEATHER_KEYWORDS if keyword in text}
+
+
+def _summarize_answer_alignment(final_answer: Optional[str], tool_evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not final_answer:
+        return {
+            'status': 'no_final_answer',
+            'reason': 'No final answer was recorded for this run.',
+            'matching_terms': [],
+            'tool_terms': [],
+            'answer_terms': [],
+        }
+
+    if not tool_evidence:
+        return {
+            'status': 'no_tool_evidence',
+            'reason': 'No tool evidence was captured, so answer grounding cannot be checked.',
+            'matching_terms': [],
+            'tool_terms': [],
+            'answer_terms': sorted(_extract_keywords(final_answer)),
+        }
+
+    tool_terms = set()
+    for item in tool_evidence:
+        tool_terms.update(_extract_keywords(item.get('content')))
+    answer_terms = _extract_keywords(final_answer)
+    matching = sorted(tool_terms & answer_terms)
+
+    if matching:
+        return {
+            'status': 'aligned',
+            'reason': f"Final answer echoes tool evidence terms: {', '.join(matching)}.",
+            'matching_terms': matching,
+            'tool_terms': sorted(tool_terms),
+            'answer_terms': sorted(answer_terms),
+        }
+
+    answer_text = str(final_answer or '').lower()
+    if tool_terms & {'rain', 'rainy', 'storm', 'stormy', 'snow', 'snowy'}:
+        if any(keyword in answer_text for keyword in ['skip', 'indoor', 'treadmill', 'not ideal', 'avoid']):
+            return {
+                'status': 'aligned',
+                'reason': 'Tool evidence suggests poor outdoor conditions and the final answer recommends caution.',
+                'matching_terms': [],
+                'tool_terms': sorted(tool_terms),
+                'answer_terms': sorted(answer_terms),
+            }
+
+    if tool_terms & {'sunny', 'cloudy'}:
+        if any(keyword in answer_text for keyword in ['jog', 'fine', 'outdoor', 'go ahead']):
+            return {
+                'status': 'aligned',
+                'reason': 'Tool evidence suggests acceptable outdoor conditions and the final answer stays permissive.',
+                'matching_terms': [],
+                'tool_terms': sorted(tool_terms),
+                'answer_terms': sorted(answer_terms),
+            }
+
+    if tool_terms and answer_terms:
+        return {
+            'status': 'unclear',
+            'reason': 'Tool evidence and final answer both contain domain signals, but they do not clearly overlap.',
+            'matching_terms': [],
+            'tool_terms': sorted(tool_terms),
+            'answer_terms': sorted(answer_terms),
+        }
+
+    return {
+        'status': 'needs_review',
+        'reason': 'Tool evidence exists, but there is not enough structured overlap to judge answer grounding automatically.',
+        'matching_terms': [],
+        'tool_terms': sorted(tool_terms),
+        'answer_terms': sorted(answer_terms),
+    }
+
+
 def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         'final_answer': None,
@@ -41,6 +133,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         'tool_sequence': [],
         'tool_evidence': [],
         'model_turns': [],
+        'turns': [],
         'suspicious_signals': [],
         'notes': [],
         'failure_mode': 'no_explicit_failure',
@@ -49,12 +142,30 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         'evidence_summary': [],
         'runtime': 'unknown',
         'agent_name': None,
+        'answer_alignment': {},
     }
 
     latest_recall: Optional[Dict[str, Any]] = None
     latest_tool_result: Optional[Dict[str, Any]] = None
     latest_decision: Optional[Dict[str, Any]] = None
     tool_calls_by_id: Dict[str, Dict[str, Any]] = {}
+    current_turn: Optional[Dict[str, Any]] = None
+
+    def ensure_turn() -> Dict[str, Any]:
+        nonlocal current_turn
+        if current_turn is None:
+            current_turn = {
+                'turn_index': len(summary['turns']) + 1,
+                'request_event_index': None,
+                'model': None,
+                'prompt': None,
+                'messages': [],
+                'tool_calls': [],
+                'tool_results': [],
+                'response': None,
+            }
+            summary['turns'].append(current_turn)
+        return current_turn
 
     for idx, e in enumerate(events):
         et = e.get('type')
@@ -63,6 +174,19 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if et == 'run.start':
             summary['runtime'] = payload.get('runtime', summary['runtime'])
             summary['agent_name'] = payload.get('agent_name', summary['agent_name'])
+
+        if et == 'llm.request':
+            current_turn = {
+                'turn_index': len(summary['turns']) + 1,
+                'request_event_index': idx,
+                'model': payload.get('model'),
+                'prompt': payload.get('prompt'),
+                'messages': payload.get('messages', []),
+                'tool_calls': [],
+                'tool_results': [],
+                'response': None,
+            }
+            summary['turns'].append(current_turn)
 
         if et == 'agent.decision':
             latest_decision = {
@@ -77,6 +201,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             })
 
         if et == 'tool.call':
+            turn = ensure_turn()
             tool_name = payload.get('tool_name')
             tool_call_id = payload.get('tool_call_id')
             if tool_name:
@@ -92,8 +217,16 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                         'args': payload.get('args', {}),
                         'event_index': idx,
                     }
+                if turn is not None:
+                    turn['tool_calls'].append({
+                        'event_index': idx,
+                        'tool_name': tool_name,
+                        'args': payload.get('args', {}),
+                        'tool_call_id': tool_call_id,
+                    })
 
         if et == 'tool.result':
+            turn = ensure_turn()
             latest_tool_result = {
                 'event_index': idx,
                 'payload': payload,
@@ -106,6 +239,13 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'tool_name': tool_name or 'unknown_tool',
                 'content': result_content,
             })
+            if turn is not None:
+                turn['tool_results'].append({
+                    'event_index': idx,
+                    'tool_name': tool_name or 'unknown_tool',
+                    'content': result_content,
+                    'tool_call_id': tool_call_id,
+                })
 
         if et == 'memory.write':
             content = payload.get('content')
@@ -139,6 +279,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 })
 
         if et == 'llm.response':
+            turn = ensure_turn()
             response_text = payload.get('response')
             tool_calls = payload.get('tool_calls') or []
             turn_summary = response_text or payload.get('decision') or 'llm response'
@@ -155,6 +296,26 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                     'kind': 'model_tool_choice',
                     'label': f'model selected tool(s): {tool_names}',
                 })
+            if turn is not None:
+                turn['response_event_index'] = idx
+                turn['response'] = response_text
+                turn['tool_calls'].extend([
+                    {
+                        'event_index': idx,
+                        'tool_name': call.get('name', 'unknown_tool'),
+                        'args': call.get('args', {}),
+                        'tool_call_id': call.get('id'),
+                        'source': 'model_response',
+                    }
+                    for call in tool_calls
+                ])
+                response_metadata = {
+                    key: payload.get(key)
+                    for key in ('finish_reason', 'response_id', 'response_model', 'decision')
+                    if payload.get(key) is not None
+                }
+                if response_metadata:
+                    turn['response_metadata'] = response_metadata
 
         if et == 'error':
             reason = payload.get('message') or 'error event emitted'
@@ -230,6 +391,7 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             summary['notes'].append('No explicit failure signal found; inspect decision quality manually.')
 
     summary['answer_risk'] = _extract_answer_risk(summary['final_answer'], summary['suspicious_signals'])
+    summary['answer_alignment'] = _summarize_answer_alignment(summary['final_answer'], summary['tool_evidence'])
     return summary
 
 

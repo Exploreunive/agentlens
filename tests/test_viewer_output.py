@@ -37,6 +37,8 @@ def test_viewer_contains_failure_summary_and_suspicious_signals(tmp_path: Path):
     assert '<strong>failure mode</strong>' in html
     assert '<strong>answer risk</strong>' in html
     assert '<strong>failure chain</strong>' in html
+    assert 'answer vs evidence' in html
+    assert 'turn timeline' in html
 
 
 def test_viewer_contains_runtime_overview_for_langgraph_like_trace():
@@ -55,6 +57,8 @@ def test_viewer_contains_runtime_overview_for_langgraph_like_trace():
     assert 'tool evidence' in html
     assert 'langgraph' in html
     assert 'weather_snapshot' in html
+    assert 'answer vs evidence' in html
+    assert 'Turn 1' in html
 
 
 def test_load_latest_trace_prefers_most_recent_file(tmp_path: Path):

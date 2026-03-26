@@ -34,6 +34,7 @@ The latest alpha can already trace a real LangGraph runtime and render it into a
 - runtime overview
 - model turns
 - tool evidence
+- answer vs evidence review
 - final answer
 - failure chain and suspicious signals when they exist
 

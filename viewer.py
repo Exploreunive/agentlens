@@ -122,6 +122,40 @@ def _truncate(value: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[: limit - 1] + '…'
 
 
+def build_turn_cards(turns: List[Dict[str, Any]]) -> str:
+    if not turns:
+        return '<div class="panel"><h2>turn timeline</h2><ul><li>No model turns captured</li></ul></div>'
+
+    cards = []
+    for turn in turns:
+        request = html.escape(_truncate(turn.get('prompt') or ''))
+        response = html.escape(_truncate(turn.get('response') or turn.get('response_metadata', {}).get('decision') or ''))
+        tool_calls = turn.get('tool_calls', [])
+        tool_results = turn.get('tool_results', [])
+        tool_call_items = ''.join(
+            f"<li>{html.escape(str(call.get('tool_name')))} · {html.escape(_truncate(call.get('args', {}), 80))}</li>"
+            for call in tool_calls
+        ) or '<li>No tool calls</li>'
+        tool_result_items = ''.join(
+            f"<li>{html.escape(str(result.get('tool_name')))} · {html.escape(_truncate(result.get('content'), 80))}</li>"
+            for result in tool_results
+        ) or '<li>No tool results</li>'
+        cards.append(
+            f'''
+            <div class="turn-card">
+              <div class="turn-head">Turn {html.escape(str(turn.get("turn_index")))}</div>
+              <div class="turn-block"><strong>model prompt</strong><div>{request or 'No prompt captured'}</div></div>
+              <div class="turn-grid">
+                <div class="turn-block"><strong>tool calls</strong><ul>{tool_call_items}</ul></div>
+                <div class="turn-block"><strong>tool results</strong><ul>{tool_result_items}</ul></div>
+              </div>
+              <div class="turn-block"><strong>model output</strong><div>{response or 'No textual response captured'}</div></div>
+            </div>
+            '''
+        )
+    return ''.join(cards)
+
+
 def build_html(events: List[Dict[str, Any]]) -> str:
     run_id = html.escape(events[0].get('run_id', 'unknown')) if events else 'unknown'
     summary = summarize_run(events)
@@ -169,6 +203,13 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     )
     runtime_label = html.escape(str(summary.get('runtime') or 'unknown'))
     agent_name = html.escape(str(summary.get('agent_name') or 'unknown'))
+    answer_alignment = summary.get('answer_alignment', {})
+    alignment_status = html.escape(str(answer_alignment.get('status', 'unknown')))
+    alignment_reason = html.escape(str(answer_alignment.get('reason', 'No answer/evidence review available.')))
+    matching_terms = ', '.join(answer_alignment.get('matching_terms', [])) or 'none'
+    tool_terms = ', '.join(answer_alignment.get('tool_terms', [])) or 'none'
+    answer_terms = ', '.join(answer_alignment.get('answer_terms', [])) or 'none'
+    turn_cards = build_turn_cards(summary.get('turns', []))
     return f'''<!doctype html>
 <html>
 <head>
@@ -201,8 +242,14 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     .stat-value {{ font-size:24px; font-weight:700; color:#f8fafc; }}
     .trace-controls {{ display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin:0 0 18px; }}
     .overview {{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:0 0 18px; }}
+    .review-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0 0 18px; }}
     .panel {{ background:#121a2b; border:1px solid #283043; border-radius:14px; padding:14px; }}
     .summary-line {{ color:#d6deeb; margin-top:10px; font-size:14px; }}
+    .turn-card {{ background:#121a2b; border:1px solid #283043; border-radius:14px; padding:14px; margin:12px 0; }}
+    .turn-head {{ font-size:16px; font-weight:700; color:#f3f6fb; margin-bottom:10px; }}
+    .turn-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:10px 0; }}
+    .turn-block {{ background:#0d1422; border-radius:10px; padding:12px; color:#d6deeb; }}
+    .turn-block strong {{ display:block; margin-bottom:8px; color:#9fd3ff; }}
     .filter-row {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }}
     .filter-chip {{ display:inline-flex; align-items:center; gap:6px; background:#0d1422; border:1px solid #283043; border-radius:999px; padding:6px 10px; font-size:13px; color:#d6deeb; }}
     .filter-chip input {{ accent-color:#7cc4ff; }}
@@ -211,7 +258,7 @@ def build_html(events: List[Dict[str, Any]]) -> str:
     pre {{ white-space:pre-wrap; word-break:break-word; background:#0d1422; border-radius:10px; padding:12px; overflow:auto; }}
     .hidden {{ display:none; }}
     @media (max-width: 900px) {{
-      .stats, .trace-controls, .overview, .cols {{ grid-template-columns:1fr; }}
+      .stats, .trace-controls, .overview, .review-grid, .cols, .turn-grid {{ grid-template-columns:1fr; }}
     }}
   </style>
 </head>
@@ -262,6 +309,30 @@ def build_html(events: List[Dict[str, Any]]) -> str:
       <h2>tool evidence</h2>
       <ul>{tool_evidence_items}</ul>
     </div>
+  </div>
+  <div class="review-grid">
+    <div class="panel">
+      <h2>answer vs evidence</h2>
+      <div class="summary-line">status: <strong>{alignment_status}</strong></div>
+      <div class="summary-line">{alignment_reason}</div>
+      <ul>
+        <li>matching terms: {html.escape(matching_terms)}</li>
+        <li>tool terms: {html.escape(tool_terms)}</li>
+        <li>answer terms: {html.escape(answer_terms)}</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>why this matters</h2>
+      <ul>
+        <li>See whether the final answer actually reflects the freshest tool evidence.</li>
+        <li>Catch cases where the model called a tool but still answered from stale reasoning.</li>
+        <li>Review each turn in order instead of mentally reconstructing the trajectory from raw events.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>turn timeline</h2>
+    {turn_cards}
   </div>
   <div class="event">
     <div class="event-head">
