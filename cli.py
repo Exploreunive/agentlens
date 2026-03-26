@@ -7,6 +7,7 @@ from pathlib import Path
 
 from benchmark_report import save_benchmark_baseline, write_benchmark_regression_report, write_benchmark_report
 from bundle_export import export_bundle
+from casefile import update_case_index
 from debug_inbox import write_debug_inbox, write_debug_inbox_html
 from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
 
@@ -19,6 +20,15 @@ def _run(script: str) -> int:
 
 def _run_with_args(script: str, *args: str) -> int:
     return subprocess.call([sys.executable, str(ROOT / script), *args])
+
+
+def _resolve_trace_name(trace: str) -> str:
+    if trace == 'latest':
+        traces = list_traces()
+        if not traces:
+            raise SystemExit('No traces available')
+        return traces[0].name
+    return trace
 
 
 def cmd_demo(args: argparse.Namespace) -> int:
@@ -113,6 +123,17 @@ def cmd_bench_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_case_update(args: argparse.Namespace) -> int:
+    out = update_case_index(
+        _resolve_trace_name(args.trace),
+        status=args.status,
+        owner=args.owner,
+        next_step=args.next_step,
+    )
+    print(f'Updated {out}')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -185,6 +206,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_bench_check = bench_sub.add_parser('check', help='compare current benchmark coverage to a saved baseline')
     p_bench_check.add_argument('name', help='saved benchmark baseline name')
     p_bench_check.set_defaults(func=cmd_bench_check)
+
+    p_case = sub.add_parser('case', help='update incident case metadata')
+    case_sub = p_case.add_subparsers(dest='case_command', required=True)
+    p_case_update = case_sub.add_parser('update', help='update owner, status, or next step for a case file')
+    p_case_update.add_argument('trace', help='trace file name or stem')
+    p_case_update.add_argument('--status', help='new, investigating, recurring, fixed, or ignored')
+    p_case_update.add_argument('--owner', help='person responsible for this case')
+    p_case_update.add_argument('--next-step', help='smallest concrete next debugging action')
+    p_case_update.set_defaults(func=cmd_case_update)
 
     return parser
 

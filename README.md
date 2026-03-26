@@ -220,6 +220,7 @@ python3 cli.py regression check good-run
 python3 cli.py bundle export
 python3 cli.py inbox                 # rank recent traces into a debug inbox
 python3 cli.py inbox --baseline good-run
+python3 cli.py case update latest --status investigating --owner alice --next-step "Replay the failing tool call"
 python3 cli.py bench report          # render benchmark-inspired coverage artifacts
 python3 cli.py bench baseline save golden-bench
 python3 cli.py bench check golden-bench
@@ -232,7 +233,9 @@ When inbox runs with baseline watch enabled, it also prepares:
 - an incident board homepage at `artifacts/cases/index.html`
 - fingerprint trend watch for rising recurring failures
 - case status tracking for `new / investigating / fixed / ignored / recurring`
+- case ownership and next-step metadata so the board becomes a working incident queue
 - recurring issue leaderboard with regressions, unresolved count, and average priority
+- an action queue that lifts unresolved baseline regressions to the top
 
 The trace viewer now also highlights:
 - the **first suspicious step**
@@ -272,6 +275,8 @@ Current alpha prototype can already:
 - use a minimal OpenAI-compatible wrapper for lower-friction LLM tracing
 - trace a real LangGraph-backed agent runtime through LangChain's `create_agent`
 - save named baselines and generate regression reports against newer runs
+- preserve case owner / status / next step when new inbox snapshots are generated
+- update case workflow metadata from the CLI without hand-editing README files
 - support privacy-safe local tracing with optional redaction
 
 ## Why someone would try this instead of another tracing tool

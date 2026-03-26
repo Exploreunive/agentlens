@@ -190,3 +190,42 @@ def test_cli_supports_benchmark_baseline_and_check(tmp_path: Path):
     regression_file = work / 'artifacts' / 'benchmark_regression.md'
     assert regression_file.exists()
     assert 'AgentLens Benchmark Regression Report' in regression_file.read_text(encoding='utf-8')
+
+
+def test_cli_supports_case_update(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+
+    case_update = subprocess.run(
+        [
+            sys.executable,
+            'cli.py',
+            'case',
+            'update',
+            'latest',
+            '--status',
+            'investigating',
+            '--owner',
+            'alice',
+            '--next-step',
+            'Replay the failing tool call with fixed inputs.',
+        ],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert case_update.returncode == 0, case_update.stderr
+    assert 'Updated artifacts/cases/latest/README.md' not in case_update.stdout
+
+    updated_path = case_update.stdout.strip().split('Updated ', 1)[1]
+    readme = work / updated_path
+    text = readme.read_text(encoding='utf-8')
+    assert '- status: `investigating`' in text
+    assert '- owner: `alice`' in text
+    assert '- next_step: `Replay the failing tool call with fixed inputs.`' in text

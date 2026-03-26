@@ -11,10 +11,53 @@ from bundle_export import export_bundle
 CASEFILES_DIR = Path('artifacts/cases')
 CASE_BOARD_OUT = CASEFILES_DIR / 'index.html'
 DEFAULT_CASE_STATUS = 'new'
+DEFAULT_CASE_OWNER = 'unassigned'
+VALID_CASE_STATUSES = {'new', 'investigating', 'recurring', 'fixed', 'ignored'}
+
+
+def _metadata_line(key: str, value: str | None) -> str:
+    return f'- {key}: `{value}`'
+
+
+def _extract_backtick_value(line: str, key: str) -> str | None:
+    prefix = f'- {key}: `'
+    if line.startswith(prefix) and line.endswith('`'):
+        return line[len(prefix):-1]
+    return None
+
+
+def _suggest_next_step(
+    *,
+    regression_report_path: str | None,
+    trace_view_path: str,
+    failure_mode: str | None = None,
+) -> str:
+    if regression_report_path:
+        return 'Compare the regression report with the trace view and identify the first changed decision.'
+    if failure_mode and failure_mode != 'no_explicit_failure':
+        return f'Open the trace view and confirm the first event that supports {failure_mode}.'
+    return f'Open {trace_view_path} and verify whether the final answer is grounded in tool evidence.'
 
 
 def case_dir_path(trace_name: str) -> Path:
     return CASEFILES_DIR / Path(trace_name).stem
+
+
+def parse_case_metadata(case_index_path: str | Path) -> dict[str, str]:
+    path = Path(case_index_path)
+    metadata = {
+        'status': DEFAULT_CASE_STATUS,
+        'owner': DEFAULT_CASE_OWNER,
+        'next_step': '',
+    }
+    if not path.exists():
+        return metadata
+    for line in path.read_text(encoding='utf-8').splitlines():
+        for key in ('status', 'owner', 'next_step'):
+            value = _extract_backtick_value(line, key)
+            if value is not None:
+                metadata[key] = value
+    return metadata
 
 
 def write_case_index(
@@ -24,19 +67,35 @@ def write_case_index(
     final_answer: str | None,
     priority_level: str,
     priority_score: int,
+    failure_mode: str | None = None,
     baseline_name: Optional[str] = None,
     regression_report_path: Optional[str] = None,
     status: str = DEFAULT_CASE_STATUS,
+    owner: str | None = None,
+    next_step: str | None = None,
 ) -> Path:
     case_dir = case_dir_path(trace_name)
     case_dir.mkdir(parents=True, exist_ok=True)
+    out = case_dir / 'README.md'
+    existing = parse_case_metadata(out)
 
     bundle_path = export_bundle(trace_name, include_diff=True)
+    resolved_status = existing.get('status') or status
+    if resolved_status not in VALID_CASE_STATUSES:
+        resolved_status = DEFAULT_CASE_STATUS
+    resolved_owner = existing.get('owner') or owner or DEFAULT_CASE_OWNER
+    resolved_next_step = existing.get('next_step') or next_step or _suggest_next_step(
+        regression_report_path=regression_report_path,
+        trace_view_path=trace_view_path,
+        failure_mode=failure_mode,
+    )
     lines = [
         '# AgentLens Case File',
         '',
         f'- trace: `{trace_name}`',
-        f'- status: `{status}`',
+        _metadata_line('status', resolved_status),
+        _metadata_line('owner', resolved_owner),
+        _metadata_line('next_step', resolved_next_step),
         f'- priority: `{priority_level}` ({priority_score}/100)',
         f'- final_answer: {final_answer}',
         f'- trace_view: `{trace_view_path}`',
@@ -49,6 +108,17 @@ def write_case_index(
 
     lines += [
         '',
+        '## Incident Workflow',
+        '- Move status from `new` -> `investigating` when someone starts work.',
+        '- Use the recorded `next_step` as the smallest concrete debugging step.',
+        '- Mark `fixed` only after the benchmark gate and regression watch are clean.',
+        '',
+        '## Repair Checklist',
+        '- [ ] Confirm the failure in the trace view.',
+        '- [ ] Capture the first wrong decision or missing check.',
+        '- [ ] Propose or land a fix.',
+        '- [ ] Re-run the relevant scenario and benchmark gate.',
+        '',
         '## Share Checklist',
         '- Open the trace view first.',
         '- Read the regression report if baseline watch is enabled.',
@@ -56,19 +126,50 @@ def write_case_index(
         '',
     ]
 
-    out = case_dir / 'README.md'
     out.write_text('\n'.join(lines), encoding='utf-8')
     return out
 
 
 def parse_case_status(case_index_path: str | Path) -> str:
-    path = Path(case_index_path)
-    if not path.exists():
-        return DEFAULT_CASE_STATUS
-    for line in path.read_text(encoding='utf-8').splitlines():
-        if line.startswith('- status: `') and line.endswith('`'):
-            return line[len('- status: `'):-1]
-    return DEFAULT_CASE_STATUS
+    return parse_case_metadata(case_index_path).get('status', DEFAULT_CASE_STATUS)
+
+
+def update_case_index(
+    trace_name: str,
+    *,
+    status: str | None = None,
+    owner: str | None = None,
+    next_step: str | None = None,
+) -> Path:
+    out = case_dir_path(trace_name) / 'README.md'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if status is not None and status not in VALID_CASE_STATUSES:
+        raise SystemExit(f'Invalid case status: {status}')
+    metadata = parse_case_metadata(out)
+    current_lines = out.read_text(encoding='utf-8').splitlines() if out.exists() else ['# AgentLens Case File', '']
+    replacements = {
+        'status': status or metadata.get('status') or DEFAULT_CASE_STATUS,
+        'owner': owner or metadata.get('owner') or DEFAULT_CASE_OWNER,
+        'next_step': next_step or metadata.get('next_step') or '',
+    }
+    updated_lines: list[str] = []
+    replaced_keys: set[str] = set()
+    for line in current_lines:
+        replaced = False
+        for key, value in replacements.items():
+            if _extract_backtick_value(line, key) is not None:
+                updated_lines.append(_metadata_line(key, value))
+                replaced_keys.add(key)
+                replaced = True
+                break
+        if not replaced:
+            updated_lines.append(line)
+    insert_at = 2 if len(updated_lines) >= 2 else len(updated_lines)
+    missing_lines = [_metadata_line(key, value) for key, value in replacements.items() if key not in replaced_keys]
+    if missing_lines:
+        updated_lines[insert_at:insert_at] = missing_lines
+    out.write_text('\n'.join(updated_lines).rstrip() + '\n', encoding='utf-8')
+    return out
 
 
 def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[dict[str, Any]] = None) -> str:
@@ -177,6 +278,8 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
           <div class="mini-label">Next Action</div>
           <div class="mini-value">{html.escape(str(item.get("trace_file")))}</div>
           <div class="mini-meta">status {html.escape(str(item.get("case_status") or DEFAULT_CASE_STATUS))} · priority {html.escape(str(item.get("priority_score", 0)))} · {'baseline regression' if item.get('regression_detected') else 'incident review'}</div>
+          <div class="mini-meta">owner {html.escape(str(item.get("case_owner") or DEFAULT_CASE_OWNER))}</div>
+          <div class="mini-meta">{html.escape(str(item.get("case_next_step") or "No next step recorded yet."))}</div>
         </div>
         '''
         for item in action_queue
@@ -197,9 +300,11 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             <span>fingerprint: <strong>{html.escape(str(((item.get('failure_fingerprint') or {}).get('label')) or 'unknown'))}</strong></span>
             <span>risk: <strong>{html.escape(str(item.get('answer_risk') or 'unknown'))}</strong></span>
             <span>status: <strong>{html.escape(str(item.get('case_status') or DEFAULT_CASE_STATUS))}</strong></span>
+            <span>owner: <strong>{html.escape(str(item.get('case_owner') or DEFAULT_CASE_OWNER))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get('final_answer') or 'No final answer captured.'))}</div>
+          <div class="answer" style="margin-top: 12px;">next step: {html.escape(str(item.get('case_next_step') or 'No next step recorded yet.'))}</div>
           <ul>
             <li>Case file: <code>{html.escape(str(item.get('case_index_path') or ''))}</code></li>
             <li>Trace page: <code>{html.escape(str(item.get('trace_view_path') or ''))}</code></li>

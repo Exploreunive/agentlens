@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from casefile import build_case_board_html, parse_case_status, write_case_board, write_case_index
+from casefile import (
+    build_case_board_html,
+    parse_case_metadata,
+    parse_case_status,
+    update_case_index,
+    write_case_board,
+    write_case_index,
+)
 
 
 def test_write_case_index_creates_shareable_readme(tmp_path: Path):
@@ -26,6 +33,7 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
             final_answer='ok',
             priority_level='high',
             priority_score=90,
+            failure_mode='wrong_tool_selected',
             baseline_name='golden',
             regression_report_path='artifacts/regressions/golden__demo.md',
         )
@@ -36,9 +44,86 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
     text = (tmp_path / out).read_text(encoding='utf-8')
     assert 'AgentLens Case File' in text
     assert '- status: `new`' in text
+    assert '- owner: `unassigned`' in text
     assert 'artifacts/views/demo.html' in text
     assert 'artifacts/regressions/golden__demo.md' in text
     assert parse_case_status(tmp_path / out) == 'new'
+    assert parse_case_metadata(tmp_path / out)['owner'] == 'unassigned'
+
+
+def test_write_case_index_preserves_existing_metadata(tmp_path: Path):
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        readme = tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md'
+        readme.parent.mkdir(parents=True)
+        readme.write_text(
+            '\n'.join([
+                '# AgentLens Case File',
+                '',
+                '- trace: `demo.jsonl`',
+                '- status: `investigating`',
+                '- owner: `alice`',
+                '- next_step: `Replay the failing tool call with fixture inputs.`',
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        traces = Path('.agentlens/traces')
+        traces.mkdir(parents=True)
+        (traces / 'demo.jsonl').write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'run-123', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'run-123', 'type': 'run.end', 'payload': {'final_answer': 'ok'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        out = write_case_index(
+            trace_name='demo.jsonl',
+            trace_view_path='artifacts/views/demo.html',
+            final_answer='ok',
+            priority_level='high',
+            priority_score=90,
+            failure_mode='wrong_tool_selected',
+        )
+    finally:
+        os.chdir(previous_cwd)
+
+    metadata = parse_case_metadata(tmp_path / out)
+    assert metadata['status'] == 'investigating'
+    assert metadata['owner'] == 'alice'
+    assert metadata['next_step'] == 'Replay the failing tool call with fixture inputs.'
+
+
+def test_update_case_index_updates_owner_status_and_next_step(tmp_path: Path):
+    readme = tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md'
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        '\n'.join([
+            '# AgentLens Case File',
+            '',
+            '- trace: `demo.jsonl`',
+            '- status: `new`',
+            '- owner: `unassigned`',
+            '- next_step: `Open the trace.`',
+        ]) + '\n',
+        encoding='utf-8',
+    )
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        out = update_case_index('demo', status='investigating', owner='alice', next_step='Replay the failing branch.')
+    finally:
+        os.chdir(previous_cwd)
+
+    assert out == Path('artifacts/cases/demo/README.md')
+    metadata = parse_case_metadata(tmp_path / out)
+    assert metadata == {
+        'status': 'investigating',
+        'owner': 'alice',
+        'next_step': 'Replay the failing branch.',
+    }
 
 
 def test_build_case_board_html_contains_summary_cards():
@@ -55,6 +140,8 @@ def test_build_case_board_html_contains_summary_cards():
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,
                 'case_status': 'investigating',
+                'case_owner': 'alice',
+                'case_next_step': 'Replay the wrong tool selection.',
                 'case_index_path': 'artifacts/cases/run-a/README.md',
                 'trace_view_path': 'artifacts/views/run-a.html',
                 'regression_report_path': 'artifacts/regressions/golden__run-a.md',
@@ -81,6 +168,8 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'unresolved 1' in html
     assert 'matched 5' in html
     assert 'baseline regression' in html
+    assert 'owner alice' in html
+    assert 'Replay the wrong tool selection.' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -100,6 +189,8 @@ def test_write_case_board_creates_index(tmp_path: Path):
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,
                 'case_status': 'new',
+                'case_owner': 'alice',
+                'case_next_step': 'Replay the wrong tool selection.',
                 'case_index_path': 'artifacts/cases/run-a/README.md',
                 'trace_view_path': 'artifacts/views/run-a.html',
                 'regression_report_path': 'artifacts/regressions/golden__run-a.md',
@@ -126,6 +217,8 @@ def test_build_case_board_html_marks_rising_fingerprint():
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,
                 'case_status': 'new',
+                'case_owner': 'alice',
+                'case_next_step': 'Replay recent-a.',
                 'case_index_path': 'artifacts/cases/recent-a/README.md',
                 'trace_view_path': 'artifacts/views/recent-a.html',
                 'regression_report_path': 'artifacts/regressions/golden__recent-a.md',
@@ -141,6 +234,8 @@ def test_build_case_board_html_marks_rising_fingerprint():
                 'final_answer': 'Jog is fine.',
                 'regression_detected': True,
                 'case_status': 'new',
+                'case_owner': 'bob',
+                'case_next_step': 'Replay recent-b.',
                 'case_index_path': 'artifacts/cases/recent-b/README.md',
                 'trace_view_path': 'artifacts/views/recent-b.html',
                 'regression_report_path': 'artifacts/regressions/golden__recent-b.md',
@@ -156,6 +251,8 @@ def test_build_case_board_html_marks_rising_fingerprint():
                 'final_answer': 'ok',
                 'regression_detected': False,
                 'case_status': 'fixed',
+                'case_owner': 'unassigned',
+                'case_next_step': 'No action.',
                 'case_index_path': 'artifacts/cases/older-a/README.md',
                 'trace_view_path': 'artifacts/views/older-a.html',
                 'regression_report_path': None,
@@ -171,6 +268,8 @@ def test_build_case_board_html_marks_rising_fingerprint():
                 'final_answer': 'ok',
                 'regression_detected': False,
                 'case_status': 'fixed',
+                'case_owner': 'unassigned',
+                'case_next_step': 'No action.',
                 'case_index_path': 'artifacts/cases/older-b/README.md',
                 'trace_view_path': 'artifacts/views/older-b.html',
                 'regression_report_path': None,
