@@ -74,10 +74,30 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
     regressions = [item for item in items if item.get('regression_detected')]
     top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
     statuses = Counter((item.get('case_status') or DEFAULT_CASE_STATUS) for item in items)
-    fingerprints = Counter(
+    fingerprint_labels = [
         (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
         for item in items
-    )
+    ]
+    fingerprints = Counter(fingerprint_labels)
+    leaderboard_rows: list[dict[str, Any]] = []
+    for label in sorted(fingerprints):
+        matching = [
+            item for item in items
+            if ((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') == label
+        ]
+        unresolved = sum(1 for item in matching if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'})
+        regression_count = sum(1 for item in matching if item.get('regression_detected'))
+        avg_priority = round(sum(int(item.get('priority_score', 0)) for item in matching) / len(matching))
+        leaderboard_rows.append(
+            {
+                'label': label,
+                'count': len(matching),
+                'regressions': regression_count,
+                'unresolved': unresolved,
+                'avg_priority': avg_priority,
+            }
+        )
+    leaderboard_rows.sort(key=lambda row: (-row['count'], -row['regressions'], -row['unresolved'], -row['avg_priority'], row['label']))
     recent_items = sorted(items, key=lambda item: int(item.get('trace_recency_rank', 999999)))
     split = max(1, len(recent_items) // 2)
     recent_window = recent_items[:split]
@@ -103,16 +123,16 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
             direction = 'steady'
         trend_rows.append((label, recent_count, older_count, delta, direction))
     trend_rows.sort(key=lambda row: (-row[3], -row[1], row[0]))
-    fingerprint_cards = ''.join(
+    leaderboard_cards = ''.join(
         f'''
         <div class="mini-card">
-          <div class="mini-label">Failure Fingerprint</div>
-          <div class="mini-value">{html.escape(str(mode))}</div>
-          <div class="mini-meta">{count} case(s)</div>
+          <div class="mini-label">Recurring Issue</div>
+          <div class="mini-value">{html.escape(str(row["label"]))}</div>
+          <div class="mini-meta">cases {row["count"]} · regressions {row["regressions"]} · unresolved {row["unresolved"]} · avg priority {row["avg_priority"]}</div>
         </div>
         '''
-        for mode, count in fingerprints.most_common(6)
-    ) or '<div class="empty">No failure fingerprints yet.</div>'
+        for row in leaderboard_rows[:6]
+    ) or '<div class="empty">No recurring issues yet.</div>'
     trend_cards = ''.join(
         f'''
         <div class="mini-card">
@@ -223,9 +243,9 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
     </section>
     <section class="layout">
       <div class="section">
-        <h2>Recurring Failure Modes</h2>
-        <p>Fingerprint clustering for the problems that keep showing up across runs.</p>
-        <div class="mini-grid">{fingerprint_cards}</div>
+        <h2>Recurring Issue Leaderboard</h2>
+        <p>The failure fingerprints creating the most repeated debugging work right now.</p>
+        <div class="mini-grid">{leaderboard_cards}</div>
       </div>
       <div class="section">
         <h2>Trend Watch</h2>

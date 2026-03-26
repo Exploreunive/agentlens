@@ -60,10 +60,12 @@ def test_build_case_board_html_contains_summary_cards():
         }
     ])
     assert 'AgentLens Incident Board' in html
-    assert 'Recurring Failure Modes' in html
+    assert 'Recurring Issue Leaderboard' in html
     assert 'Trend Watch' in html
     assert 'memory-vs-tool-conflict' in html
     assert 'status mix: investigating=1' in html.lower()
+    assert 'cases 1' in html
+    assert 'unresolved 1' in html
 
 
 def test_write_case_board_creates_index(tmp_path: Path):
@@ -161,3 +163,4 @@ def test_build_case_board_html_marks_rising_fingerprint():
     assert 'recent 2' in html
     assert 'older 0' in html
     assert 'rising' in html
+    assert 'avg priority 80' in html
