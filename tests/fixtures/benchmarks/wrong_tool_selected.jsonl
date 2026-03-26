@@ -1,0 +1,7 @@
+{"run_id":"wrong-tool-selected","type":"run.start","payload":{"runtime":"benchmark_fixture","agent_name":"retail_agent","task":"Update the shipping address for the active order"}}
+{"run_id":"wrong-tool-selected","type":"llm.request","payload":{"model":"fixture-model","prompt":"Change the shipping address for order #A100 to 88 Pine Street."}}
+{"run_id":"wrong-tool-selected","type":"llm.response","payload":{"tool_calls":[{"name":"cancel_order","id":"call_1","args":{"order_id":"A100"}}],"decision":"tool_calls=cancel_order"}}
+{"run_id":"wrong-tool-selected","type":"tool.call","payload":{"tool_name":"cancel_order","tool_call_id":"call_1","args":{"order_id":"A100"}}}
+{"run_id":"wrong-tool-selected","type":"tool.result","payload":{"tool_call_id":"call_1","content":"Order A100 was canceled."}}
+{"run_id":"wrong-tool-selected","type":"error","payload":{"kind":"used_wrong_tool","message":"The agent canceled the order instead of updating the shipping address."},"status":"error"}
+{"run_id":"wrong-tool-selected","type":"run.end","payload":{"final_answer":"The shipping address has been updated."}}

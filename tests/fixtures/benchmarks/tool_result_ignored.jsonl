@@ -1,0 +1,7 @@
+{"run_id":"tool-result-ignored","type":"run.start","payload":{"runtime":"benchmark_fixture","agent_name":"support_agent","task":"Check whether order B200 has shipped"}}
+{"run_id":"tool-result-ignored","type":"llm.request","payload":{"model":"fixture-model","prompt":"Has order B200 shipped yet?"}}
+{"run_id":"tool-result-ignored","type":"llm.response","payload":{"tool_calls":[{"name":"get_order_status","id":"call_1","args":{"order_id":"B200"}}],"decision":"tool_calls=get_order_status"}}
+{"run_id":"tool-result-ignored","type":"tool.call","payload":{"tool_name":"get_order_status","tool_call_id":"call_1","args":{"order_id":"B200"}}}
+{"run_id":"tool-result-ignored","type":"tool.result","payload":{"tool_call_id":"call_1","content":"Order B200 is still pending and has not shipped."}}
+{"run_id":"tool-result-ignored","type":"error","payload":{"kind":"tool_result_ignored","message":"The final answer ignored the tool result that the order has not shipped."},"status":"error"}
+{"run_id":"tool-result-ignored","type":"run.end","payload":{"final_answer":"Yes, order B200 has already shipped."}}

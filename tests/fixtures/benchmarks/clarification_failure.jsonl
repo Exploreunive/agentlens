@@ -1,0 +1,7 @@
+{"run_id":"clarification-failure","type":"run.start","payload":{"runtime":"benchmark_fixture","agent_name":"travel_agent","task":"Book a flight within policy"}}
+{"run_id":"clarification-failure","type":"llm.request","payload":{"model":"fixture-model","prompt":"Book me the cheapest flight to New York next week."}}
+{"run_id":"clarification-failure","type":"llm.response","payload":{"tool_calls":[{"name":"book_flight","id":"call_1","args":{"destination":"New York","cabin":"business","date":"next week Tuesday"}}],"decision":"tool_calls=book_flight"}}
+{"run_id":"clarification-failure","type":"tool.call","payload":{"tool_name":"book_flight","tool_call_id":"call_1","args":{"destination":"New York","cabin":"business","date":"next week Tuesday"}}}
+{"run_id":"clarification-failure","type":"tool.result","payload":{"tool_call_id":"call_1","content":"Booked business class flight to New York."}}
+{"run_id":"clarification-failure","type":"error","payload":{"kind":"clarification_missing","message":"The request was ambiguous and policy-sensitive, but the agent did not ask a follow-up question."},"status":"error"}
+{"run_id":"clarification-failure","type":"run.end","payload":{"final_answer":"Your New York flight is booked."}}

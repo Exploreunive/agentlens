@@ -1,0 +1,7 @@
+{"run_id":"wrong-tool-argument","type":"run.start","payload":{"runtime":"benchmark_fixture","agent_name":"telecom_agent","task":"Add a 5GB data pack to line 18800001111"}}
+{"run_id":"wrong-tool-argument","type":"llm.request","payload":{"model":"fixture-model","prompt":"Add a 5GB pack to line 18800001111."}}
+{"run_id":"wrong-tool-argument","type":"llm.response","payload":{"tool_calls":[{"name":"add_data_pack","id":"call_1","args":{"phone_number":"18800001112","pack":"5GB"}}],"decision":"tool_calls=add_data_pack"}}
+{"run_id":"wrong-tool-argument","type":"tool.call","payload":{"tool_name":"add_data_pack","tool_call_id":"call_1","args":{"phone_number":"18800001112","pack":"5GB"}}}
+{"run_id":"wrong-tool-argument","type":"tool.result","payload":{"tool_call_id":"call_1","content":"Added 5GB pack to line 18800001112."}}
+{"run_id":"wrong-tool-argument","type":"error","payload":{"kind":"used_wrong_tool_argument","message":"The agent applied the pack to the wrong phone number."},"status":"error"}
+{"run_id":"wrong-tool-argument","type":"run.end","payload":{"final_answer":"The 5GB pack has been added to 18800001111."}}

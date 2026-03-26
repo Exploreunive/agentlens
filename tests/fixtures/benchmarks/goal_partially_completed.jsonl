@@ -1,0 +1,9 @@
+{"run_id":"goal-partially-completed","type":"run.start","payload":{"runtime":"benchmark_fixture","agent_name":"workspace_agent","task":"Create a project and invite Alice and Bob"}}
+{"run_id":"goal-partially-completed","type":"llm.request","payload":{"model":"fixture-model","prompt":"Create a new project named Orion and invite Alice and Bob."}}
+{"run_id":"goal-partially-completed","type":"llm.response","payload":{"tool_calls":[{"name":"create_project","id":"call_1","args":{"name":"Orion"}},{"name":"invite_user","id":"call_2","args":{"project":"Orion","user":"Alice"}}],"decision":"tool_calls=create_project,invite_user"}}
+{"run_id":"goal-partially-completed","type":"tool.call","payload":{"tool_name":"create_project","tool_call_id":"call_1","args":{"name":"Orion"}}}
+{"run_id":"goal-partially-completed","type":"tool.result","payload":{"tool_call_id":"call_1","content":"Project Orion created."}}
+{"run_id":"goal-partially-completed","type":"tool.call","payload":{"tool_name":"invite_user","tool_call_id":"call_2","args":{"project":"Orion","user":"Alice"}}}
+{"run_id":"goal-partially-completed","type":"tool.result","payload":{"tool_call_id":"call_2","content":"Alice invited to Orion."}}
+{"run_id":"goal-partially-completed","type":"error","payload":{"kind":"goal_partially_completed","message":"Bob was never invited, but the agent declared the workflow complete."},"status":"error"}
+{"run_id":"goal-partially-completed","type":"run.end","payload":{"final_answer":"The project is ready and both teammates were invited."}}

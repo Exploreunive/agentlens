@@ -8,6 +8,11 @@ ERROR_TYPES = {
     'stale_memory_override',
     'span_error',
     'llm_error',
+    'used_wrong_tool',
+    'used_wrong_tool_argument',
+    'tool_result_ignored',
+    'goal_partially_completed',
+    'clarification_missing',
 }
 
 WEATHER_KEYWORDS = {
@@ -216,6 +221,16 @@ def _build_failure_fingerprint(summary: Dict[str, Any]) -> Dict[str, Any]:
         label = 'stale-memory-override'
     elif signal_type == 'span_error':
         label = 'runtime-span-error'
+    elif signal_type == 'used_wrong_tool':
+        label = 'wrong-tool-selected'
+    elif signal_type == 'used_wrong_tool_argument':
+        label = 'wrong-tool-argument'
+    elif signal_type == 'tool_result_ignored':
+        label = 'tool-result-ignored'
+    elif signal_type == 'goal_partially_completed':
+        label = 'goal-partially-completed'
+    elif signal_type == 'clarification_missing':
+        label = 'clarification-missing'
     elif alignment_status in {'unclear', 'needs_review'} and tool_evidence:
         label = 'answer-ungrounded-with-tools'
     elif alignment_status == 'no_tool_evidence':
@@ -461,6 +476,16 @@ def summarize_run(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             summary['failure_mode'] = 'memory_vs_tool_conflict'
         elif first_signal['type'] == 'stale_memory_override':
             summary['failure_mode'] = 'stale_memory_override'
+        elif first_signal['type'] == 'used_wrong_tool':
+            summary['failure_mode'] = 'wrong_tool_selected'
+        elif first_signal['type'] == 'used_wrong_tool_argument':
+            summary['failure_mode'] = 'wrong_tool_argument'
+        elif first_signal['type'] == 'tool_result_ignored':
+            summary['failure_mode'] = 'tool_result_ignored'
+        elif first_signal['type'] == 'goal_partially_completed':
+            summary['failure_mode'] = 'goal_partially_completed'
+        elif first_signal['type'] == 'clarification_missing':
+            summary['failure_mode'] = 'clarification_failure'
         elif first_signal['type'] == 'llm_error':
             summary['failure_mode'] = 'llm_runtime_error'
         else:
