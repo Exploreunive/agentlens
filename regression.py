@@ -8,6 +8,7 @@ from analyzer import summarize_divergence, summarize_run
 
 TRACE_DIR = Path('.agentlens/traces')
 BASELINE_DIR = Path('.agentlens/baselines')
+ARTIFACTS_DIR = Path('artifacts')
 
 
 def load_trace(path: Path) -> List[Dict[str, Any]]:
@@ -77,9 +78,41 @@ def summarize_regression(baseline_events: List[Dict[str, Any]], candidate_events
     candidate_summary = summarize_run(candidate_events)
     divergence = summarize_divergence(baseline_events, candidate_events)
 
+    baseline_runtime = baseline_summary.get('runtime')
+    candidate_runtime = candidate_summary.get('runtime')
+    baseline_agent = baseline_summary.get('agent_name')
+    candidate_agent = candidate_summary.get('agent_name')
+    comparable = True
+    comparability_reason = 'Candidate is comparable to the baseline.'
+
+    if baseline_runtime and candidate_runtime and baseline_runtime != candidate_runtime:
+        comparable = False
+        comparability_reason = f'Runtime differs: baseline={baseline_runtime}, candidate={candidate_runtime}.'
+    elif baseline_agent and candidate_agent and baseline_agent != candidate_agent:
+        comparable = False
+        comparability_reason = f'Agent differs: baseline={baseline_agent}, candidate={candidate_agent}.'
+
     baseline_signals = len(baseline_summary.get('suspicious_signals', []))
     candidate_signals = len(candidate_summary.get('suspicious_signals', []))
     reasons: List[str] = []
+
+    if not comparable:
+        reasons.append(comparability_reason)
+        return {
+            'regression_detected': False,
+            'baseline_final_answer': baseline_summary.get('final_answer'),
+            'candidate_final_answer': candidate_summary.get('final_answer'),
+            'baseline_suspicious_signals': baseline_summary.get('suspicious_signals', []),
+            'candidate_suspicious_signals': candidate_summary.get('suspicious_signals', []),
+            'divergence': divergence.get('first_divergence'),
+            'baseline_failure_mode': baseline_summary.get('failure_mode'),
+            'candidate_failure_mode': candidate_summary.get('failure_mode'),
+            'baseline_answer_risk': baseline_summary.get('answer_risk'),
+            'candidate_answer_risk': candidate_summary.get('answer_risk'),
+            'reasons': reasons,
+            'comparable': comparable,
+            'comparability_reason': comparability_reason,
+        }
 
     if candidate_signals > baseline_signals:
         reasons.append('Candidate emits more suspicious signals than the baseline.')
@@ -109,6 +142,8 @@ def summarize_regression(baseline_events: List[Dict[str, Any]], candidate_events
         'baseline_answer_risk': baseline_risk,
         'candidate_answer_risk': candidate_risk,
         'reasons': reasons,
+        'comparable': comparable,
+        'comparability_reason': comparability_reason,
     }
 
 
@@ -132,3 +167,18 @@ def build_regression_report(baseline_name: str, baseline_trace: str, candidate_t
         f"- {regression.get('divergence')}",
     ]
     return '\n'.join(lines) + '\n'
+
+
+def regression_report_path(baseline_name: str, candidate_trace: str) -> Path:
+    safe_candidate = Path(candidate_trace).stem
+    return ARTIFACTS_DIR / 'regressions' / f'{baseline_name}__{safe_candidate}.md'
+
+
+def write_regression_report(baseline_name: str, baseline_trace: str, candidate_trace: str, regression: Dict[str, Any]) -> Path:
+    out = regression_report_path(baseline_name, candidate_trace)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        build_regression_report(baseline_name, baseline_trace, candidate_trace, regression),
+        encoding='utf-8',
+    )
+    return out

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from bundle_export import export_bundle
 from debug_inbox import write_debug_inbox, write_debug_inbox_html
-from regression import BASELINE_DIR, build_regression_report, list_traces, load_baseline, save_baseline, summarize_regression, load_trace
+from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
 
 ROOT = Path(__file__).resolve().parent
 
@@ -74,11 +74,7 @@ def cmd_regression_check(args: argparse.Namespace) -> int:
     candidate_trace = traces[0]
     candidate_events = load_trace(candidate_trace)
     summary = summarize_regression(baseline_events, candidate_events)
-    report = build_regression_report(args.name, baseline_trace_path.name, candidate_trace.name, summary)
-
-    out = ROOT / 'artifacts' / f'regression_{args.name}.md'
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(report, encoding='utf-8')
+    out = write_regression_report(args.name, baseline_trace_path.name, candidate_trace.name, summary)
     print(f'Wrote {out}')
     return 0
 

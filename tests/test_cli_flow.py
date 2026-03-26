@@ -90,9 +90,9 @@ def test_cli_supports_baseline_and_regression_workflow(tmp_path: Path):
     regression = subprocess.run([sys.executable, 'cli.py', 'regression', 'check', 'golden-run'], cwd=work, capture_output=True, text=True)
     assert regression.returncode == 0, regression.stderr
 
-    report = work / 'artifacts' / 'regression_golden-run.md'
-    assert report.exists()
-    text = report.read_text(encoding='utf-8')
+    reports = list((work / 'artifacts' / 'regressions').glob('golden-run__*.md'))
+    assert reports
+    text = reports[0].read_text(encoding='utf-8')
     assert 'AgentLens Regression Report' in text
     assert 'regression_detected' in text
     assert 'baseline: `golden-run`' in text
@@ -124,8 +124,10 @@ def test_cli_supports_debug_inbox(tmp_path: Path):
     assert 'debug_inbox.html' in inbox.stdout
     report = work / 'artifacts' / 'debug_inbox.md'
     html_report = work / 'artifacts' / 'debug_inbox.html'
+    trace_views_dir = work / 'artifacts' / 'views'
     assert report.exists()
     assert html_report.exists()
+    assert any(trace_views_dir.glob('*.html'))
     assert 'AgentLens Debug Inbox' in report.read_text(encoding='utf-8')
     assert 'AgentLens Debug Inbox' in html_report.read_text(encoding='utf-8')
 
@@ -148,5 +150,7 @@ def test_cli_inbox_supports_baseline_watch(tmp_path: Path):
 
     report = work / 'artifacts' / 'debug_inbox.md'
     html_report = work / 'artifacts' / 'debug_inbox.html'
+    regression_reports_dir = work / 'artifacts' / 'regressions'
     assert 'Active baseline: `golden-run`.' in report.read_text(encoding='utf-8')
     assert 'Baseline watch: golden-run' in html_report.read_text(encoding='utf-8')
+    assert any(regression_reports_dir.glob('golden-run__*.md'))

@@ -4,8 +4,9 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression
+from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
+from viewer import write_trace_view
 
 OUT = Path('artifacts/debug_inbox.md')
 HTML_OUT = Path('artifacts/debug_inbox.html')
@@ -43,10 +44,19 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
         regression = None
         regression_detected = False
         regression_reasons: List[str] = []
+        trace_view_path = write_trace_view(trace_path.stem)
+        regression_report = None
         if active_baseline_events is not None and active_baseline_path is not None and trace_path != active_baseline_path:
             regression = summarize_regression(active_baseline_events, events)
             regression_detected = bool(regression.get('regression_detected'))
             regression_reasons = list(regression.get('reasons', []))
+            if regression.get('comparable', True):
+                regression_report = write_regression_report(
+                    active_baseline_name or 'baseline',
+                    active_baseline_path.name,
+                    trace_path.name,
+                    regression,
+                )
 
         priority_score = int(priority.get('score', 0))
         priority_reasons = list(priority.get('reasons', []))
@@ -72,6 +82,8 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'regression_detected': regression_detected,
                 'regression_reasons': regression_reasons,
                 'regression_summary': regression,
+                'trace_view_path': str(trace_view_path),
+                'regression_report_path': str(regression_report) if regression_report else None,
             }
         )
     items.sort(
@@ -104,6 +116,9 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         lines.append(f"- failure_mode: `{item.get('failure_mode')}`")
         if item.get('baseline_name'):
             lines.append(f"- baseline_watch: `{item.get('baseline_name')}` -> regression=`{item.get('regression_detected')}`")
+        lines.append(f"- trace_view: `{item.get('trace_view_path')}`")
+        if item.get('regression_report_path'):
+            lines.append(f"- regression_report: `{item.get('regression_report_path')}`")
         lines.append(f"- final_answer: {item.get('final_answer')}")
         lines.append(f"- suspicious_signals: {item.get('suspicious_signals')}")
         reasons = item.get('priority_reasons', [])
@@ -145,7 +160,11 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <span>baseline watch: <strong>{html.escape("regressed" if item.get("regression_detected") else "clean")}</strong></span>
               </div>
               <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
-              <div class="command-hint">Open this run with <code>python3 cli.py view {html.escape(str(Path(str(item.get("trace_file"))).stem))}</code></div>
+              <div class="command-hint">
+                Open this run with <code>python3 cli.py view {html.escape(str(Path(str(item.get("trace_file"))).stem))}</code>
+                <br />
+                Trace page: <code>{html.escape(str(item.get("trace_view_path") or ""))}</code>
+              </div>
               <div class="columns">
                 <div>
                   <h3>Priority reasons</h3>
@@ -158,6 +177,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <div>
                   <h3>Regression watch</h3>
                   <ul>{"".join(f"<li>{html.escape(str(reason))}</li>" for reason in item.get("regression_reasons", [])) or "<li>No baseline regression review attached.</li>"}</ul>
+                  {f'<div class="report-hint">Report: <code>{html.escape(str(item.get("regression_report_path")))}</code></div>' if item.get("regression_report_path") else ''}
                 </div>
               </div>
             </section>
@@ -212,6 +232,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
     .meta {{ display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 16px 0 14px; color: var(--muted); }}
     .answer {{ padding: 14px 16px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--border); line-height: 1.6; white-space: pre-wrap; }}
     .command-hint {{ margin-top: 12px; color: var(--muted); font-size: 14px; }}
+    .report-hint {{ margin-top: 12px; color: var(--muted); font-size: 13px; }}
     code {{ color: var(--accent); font-family: ui-monospace, SFMono-Regular, monospace; }}
     .columns {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }}
     .columns h3 {{ margin: 0 0 10px; font-size: 14px; color: var(--accent); }}

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from regression import build_regression_report, list_baselines, save_baseline, summarize_regression, load_baseline
+from regression import build_regression_report, list_baselines, regression_report_path, save_baseline, summarize_regression, load_baseline, write_regression_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,6 +26,22 @@ def test_summarize_regression_detects_worsened_candidate():
     assert result['candidate_final_answer'] == 'jog is fine'
     assert result['candidate_suspicious_signals'][0]['type'] == 'memory_conflict'
     assert result['reasons']
+
+
+def test_summarize_regression_skips_non_comparable_runtime():
+    baseline = [
+        {'type': 'run.start', 'payload': {'runtime': 'langgraph', 'agent_name': 'weather_agent'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'skip jogging'}},
+    ]
+    candidate = [
+        {'type': 'run.start', 'payload': {'runtime': 'custom', 'agent_name': 'weather_agent'}},
+        {'type': 'run.end', 'payload': {'final_answer': 'jog is fine'}},
+    ]
+
+    result = summarize_regression(baseline, candidate)
+    assert result['regression_detected'] is False
+    assert result['comparable'] is False
+    assert 'Runtime differs' in result['comparability_reason']
 
 
 def test_build_regression_report_contains_core_sections():
@@ -95,3 +111,28 @@ def test_list_baselines_returns_saved_entries(tmp_path: Path):
         os.chdir(previous_cwd)
 
     assert [path.stem for path in baselines] == ['golden']
+
+
+def test_write_regression_report_creates_candidate_specific_file(tmp_path: Path):
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        out = write_regression_report(
+            'golden',
+            'baseline.jsonl',
+            'candidate.jsonl',
+            {
+                'regression_detected': True,
+                'baseline_final_answer': 'skip jogging',
+                'candidate_final_answer': 'jog is fine',
+                'baseline_suspicious_signals': [],
+                'candidate_suspicious_signals': [{'type': 'memory_conflict'}],
+                'divergence': {'event_index': 1},
+            },
+        )
+    finally:
+        os.chdir(previous_cwd)
+
+    assert out == regression_report_path('golden', 'candidate.jsonl')
+    assert (tmp_path / out).exists()
