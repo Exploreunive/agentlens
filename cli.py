@@ -16,6 +16,10 @@ def _run(script: str) -> int:
     return subprocess.call([sys.executable, str(ROOT / script)])
 
 
+def _run_with_args(script: str, *args: str) -> int:
+    return subprocess.call([sys.executable, str(ROOT / script), *args])
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     demo_map = {
         'minimal': 'examples/minimal_agent.py',
@@ -28,7 +32,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def cmd_view(_: argparse.Namespace) -> int:
-    return _run('viewer.py')
+    return _run_with_args('viewer.py', _.trace)
 
 
 def cmd_diff(_: argparse.Namespace) -> int:
@@ -110,7 +114,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_demo.set_defaults(func=cmd_demo)
 
-    p_view = sub.add_parser('view', help='render the latest trace to HTML')
+    p_view = sub.add_parser('view', help='render a trace to HTML')
+    p_view.add_argument('trace', nargs='?', default='latest', help='trace file, trace stem, or `latest`')
     p_view.set_defaults(func=cmd_view)
 
     p_diff = sub.add_parser('diff', help='compare the two latest runs and write a Markdown report')

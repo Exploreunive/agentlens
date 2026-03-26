@@ -86,6 +86,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "none"))}</strong></span>
               </div>
               <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
+              <div class="command-hint">Open this run with <code>python3 cli.py view {html.escape(str(Path(str(item.get("trace_file"))).stem))}</code></div>
               <div class="columns">
                 <div>
                   <h3>Priority reasons</h3>
@@ -145,6 +146,8 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
     .score small {{ color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }}
     .meta {{ display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 16px 0 14px; color: var(--muted); }}
     .answer {{ padding: 14px 16px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--border); line-height: 1.6; white-space: pre-wrap; }}
+    .command-hint {{ margin-top: 12px; color: var(--muted); font-size: 14px; }}
+    code {{ color: var(--accent); font-family: ui-monospace, SFMono-Regular, monospace; }}
     .columns {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }}
     .columns h3 {{ margin: 0 0 10px; font-size: 14px; color: var(--accent); }}
     ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}

@@ -27,6 +27,25 @@ def test_cli_demo_and_view(tmp_path: Path):
     assert 'AgentLens Trace Viewer' in html
 
 
+def test_cli_view_supports_specific_trace(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'minimal'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    traces = sorted((work / '.agentlens' / 'traces').glob('*.jsonl'))
+    assert traces
+    trace_stem = traces[0].stem
+
+    view = subprocess.run([sys.executable, 'cli.py', 'view', trace_stem], cwd=work, capture_output=True, text=True)
+    assert view.returncode == 0, view.stderr
+
+    html_file = work / 'artifacts' / 'views' / f'{trace_stem}.html'
+    assert html_file.exists()
+    assert 'AgentLens Trace Viewer' in html_file.read_text(encoding='utf-8')
+
+
 def test_cli_supports_divergent_diff_and_explain(tmp_path: Path):
     work = tmp_path / 'proj'
     shutil.copytree(ROOT, work)

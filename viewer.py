@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import html
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from analyzer import summarize_run
 from explain import build_failure_card
+from regression import load_trace, resolve_trace_path
 
 TRACE_DIR = Path('.agentlens/traces')
 OUT = Path('artifacts/latest_trace.html')
+VIEWS_DIR = Path('artifacts/views')
 
 
 def summarize_event_types(events: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -44,18 +47,12 @@ def extract_run_metrics(events: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def load_latest_trace() -> List[Dict[str, Any]]:
-    files = sorted(TRACE_DIR.glob('*.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not files:
-        raise SystemExit('No trace files found in .agentlens/traces')
+    return load_trace(resolve_trace_path('latest'))
 
-    events = []
-    with files[0].open('r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            events.append(json.loads(line))
-    return events
+
+def load_trace_by_name(name: str | None = None) -> tuple[Path, List[Dict[str, Any]]]:
+    path = resolve_trace_path(name or 'latest')
+    return path, load_trace(path)
 
 
 def find_first_suspicious_index(events: List[Dict[str, Any]]) -> Optional[int]:
@@ -391,11 +388,26 @@ def build_html(events: List[Dict[str, Any]]) -> str:
 </html>'''
 
 
+def output_path_for_trace(trace_path: Path, *, explicit: bool = False) -> Path:
+    latest_path = resolve_trace_path('latest')
+    if trace_path == latest_path and not explicit:
+        return OUT
+    VIEWS_DIR.mkdir(parents=True, exist_ok=True)
+    return VIEWS_DIR / f'{trace_path.stem}.html'
+
+
+def write_trace_view(name: str | None = None) -> Path:
+    trace_path, events = load_trace_by_name(name)
+    out_path = output_path_for_trace(trace_path, explicit=name not in {None, '', 'latest'})
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(build_html(events), encoding='utf-8')
+    return out_path
+
+
 def main() -> None:
-    events = load_latest_trace()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(build_html(events), encoding='utf-8')
-    print(f'Wrote {OUT}')
+    trace_name = sys.argv[1] if len(sys.argv) > 1 else 'latest'
+    out_path = write_trace_view(trace_name)
+    print(f'Wrote {out_path}')
 
 
 if __name__ == '__main__':

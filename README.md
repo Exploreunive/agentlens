@@ -210,6 +210,7 @@ python3 cli.py demo failure          # visible failure demo
 python3 cli.py demo openai-wrapper   # minimal OpenAI-compatible wrapper demo
 python3 cli.py demo langgraph        # LangGraph-backed agent runtime demo
 python3 cli.py view                  # latest trace -> HTML
+python3 cli.py view <trace-stem>     # open a specific run from the inbox
 python3 cli.py diff                  # latest two runs -> Markdown diff
 python3 cli.py explain               # generate both HTML + diff artifacts
 python3 cli.py baseline save good-run

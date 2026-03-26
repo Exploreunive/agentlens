@@ -85,3 +85,26 @@ def test_load_latest_trace_prefers_most_recent_file(tmp_path: Path):
         os.chdir(previous_cwd)
 
     assert events[0]['run_id'] == 'newer'
+
+
+def test_write_trace_view_supports_named_trace(tmp_path: Path):
+    from viewer import write_trace_view
+
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        traces = Path('.agentlens/traces')
+        traces.mkdir(parents=True)
+        (traces / 'older.jsonl').write_text(
+            json.dumps({'run_id': 'older', 'type': 'run.start', 'payload': {'runtime': 'custom'}}) + '\n',
+            encoding='utf-8',
+        )
+        out = write_trace_view('older')
+        out_path = (tmp_path / out).resolve()
+    finally:
+        os.chdir(previous_cwd)
+
+    assert out.name == 'older.html'
+    assert out_path.exists()
+    assert 'AgentLens Trace Viewer' in out_path.read_text(encoding='utf-8')

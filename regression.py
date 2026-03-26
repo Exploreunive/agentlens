@@ -24,6 +24,29 @@ def list_traces() -> List[Path]:
     return sorted(TRACE_DIR.glob('*.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def resolve_trace_path(name: str | None = None) -> Path:
+    traces = list_traces()
+    if not traces:
+        raise SystemExit('No traces available')
+    if name is None or name == 'latest':
+        return traces[0]
+
+    direct = Path(name)
+    if direct.exists():
+        return direct
+
+    if not name.endswith('.jsonl'):
+        candidate = TRACE_DIR / f'{name}.jsonl'
+        if candidate.exists():
+            return candidate
+
+    candidate = TRACE_DIR / name
+    if candidate.exists():
+        return candidate
+
+    raise SystemExit(f'Trace not found: {name}')
+
+
 def save_baseline(name: str, trace_path: Path) -> Path:
     BASELINE_DIR.mkdir(parents=True, exist_ok=True)
     baseline_file = BASELINE_DIR / f'{name}.json'

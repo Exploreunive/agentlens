@@ -9,7 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from analyzer import summarize_divergence, summarize_run
 from diff_runs import build_report as build_diff_report
 from diff_runs import summarize as summarize_trace
-from regression import list_traces, load_trace
+from regression import list_traces, load_trace, resolve_trace_path
 from viewer import build_html
 
 TRACE_DIR = Path('.agentlens/traces')
@@ -20,31 +20,6 @@ SAFE_NAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 def _safe_slug(value: str) -> str:
     cleaned = SAFE_NAME_RE.sub('-', value.strip())
     return cleaned.strip('-') or 'trace'
-
-
-def resolve_trace_path(name: Optional[str] = None) -> Path:
-    traces = list_traces()
-    if not traces:
-        raise SystemExit('No traces available to export')
-    if name is None or name == 'latest':
-        return traces[0]
-
-    direct = Path(name)
-    if direct.exists():
-        return direct
-
-    if not name.endswith('.jsonl'):
-        candidate = TRACE_DIR / f'{name}.jsonl'
-        if candidate.exists():
-            return candidate
-
-    candidate = TRACE_DIR / name
-    if candidate.exists():
-        return candidate
-
-    raise SystemExit(f'Trace not found: {name}')
-
-
 def build_bundle_manifest(trace_path: Path, events: List[Dict[str, Any]]) -> Dict[str, Any]:
     summary = summarize_run(events)
     return {
