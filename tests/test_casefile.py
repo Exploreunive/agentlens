@@ -43,6 +43,7 @@ def test_build_case_board_html_contains_summary_cards():
     html = build_case_board_html([
         {
             'trace_file': 'run-a.jsonl',
+            'trace_recency_rank': 1,
             'priority_score': 90,
             'priority_level': 'high',
             'failure_mode': 'memory_vs_tool_conflict',
@@ -57,6 +58,7 @@ def test_build_case_board_html_contains_summary_cards():
     ])
     assert 'AgentLens Incident Board' in html
     assert 'Recurring Failure Modes' in html
+    assert 'Trend Watch' in html
     assert 'memory-vs-tool-conflict' in html
 
 
@@ -68,6 +70,7 @@ def test_write_case_board_creates_index(tmp_path: Path):
         out = write_case_board([
             {
                 'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
                 'priority_score': 90,
                 'priority_level': 'high',
                 'failure_mode': 'memory_vs_tool_conflict',
@@ -85,3 +88,67 @@ def test_write_case_board_creates_index(tmp_path: Path):
 
     assert out == Path('artifacts/cases/index.html')
     assert (tmp_path / out).exists()
+
+
+def test_build_case_board_html_marks_rising_fingerprint():
+    html = build_case_board_html([
+        {
+            'trace_file': 'recent-a.jsonl',
+            'trace_recency_rank': 1,
+            'priority_score': 90,
+            'priority_level': 'high',
+            'failure_mode': 'memory_vs_tool_conflict',
+            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'a'},
+            'answer_risk': 'hidden_degradation',
+            'final_answer': 'Jog is fine.',
+            'regression_detected': True,
+            'case_index_path': 'artifacts/cases/recent-a/README.md',
+            'trace_view_path': 'artifacts/views/recent-a.html',
+            'regression_report_path': 'artifacts/regressions/golden__recent-a.md',
+        },
+        {
+            'trace_file': 'recent-b.jsonl',
+            'trace_recency_rank': 2,
+            'priority_score': 70,
+            'priority_level': 'high',
+            'failure_mode': 'memory_vs_tool_conflict',
+            'failure_fingerprint': {'label': 'memory-vs-tool-conflict', 'id': 'b'},
+            'answer_risk': 'hidden_degradation',
+            'final_answer': 'Jog is fine.',
+            'regression_detected': True,
+            'case_index_path': 'artifacts/cases/recent-b/README.md',
+            'trace_view_path': 'artifacts/views/recent-b.html',
+            'regression_report_path': 'artifacts/regressions/golden__recent-b.md',
+        },
+        {
+            'trace_file': 'older-a.jsonl',
+            'trace_recency_rank': 3,
+            'priority_score': 10,
+            'priority_level': 'low',
+            'failure_mode': 'no_explicit_failure',
+            'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'c'},
+            'answer_risk': 'no_explicit_risk_found',
+            'final_answer': 'ok',
+            'regression_detected': False,
+            'case_index_path': 'artifacts/cases/older-a/README.md',
+            'trace_view_path': 'artifacts/views/older-a.html',
+            'regression_report_path': None,
+        },
+        {
+            'trace_file': 'older-b.jsonl',
+            'trace_recency_rank': 4,
+            'priority_score': 10,
+            'priority_level': 'low',
+            'failure_mode': 'no_explicit_failure',
+            'failure_fingerprint': {'label': 'no-explicit-failure', 'id': 'd'},
+            'answer_risk': 'no_explicit_risk_found',
+            'final_answer': 'ok',
+            'regression_detected': False,
+            'case_index_path': 'artifacts/cases/older-b/README.md',
+            'trace_view_path': 'artifacts/views/older-b.html',
+            'regression_report_path': None,
+        },
+    ])
+    assert 'recent 2' in html
+    assert 'older 0' in html
+    assert 'rising' in html

@@ -64,6 +64,31 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
         (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
         for item in items
     )
+    recent_items = sorted(items, key=lambda item: int(item.get('trace_recency_rank', 999999)))
+    split = max(1, len(recent_items) // 2)
+    recent_window = recent_items[:split]
+    older_window = recent_items[split:]
+    recent_counter = Counter(
+        (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
+        for item in recent_window
+    )
+    older_counter = Counter(
+        (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
+        for item in older_window
+    )
+    trend_rows: list[tuple[str, int, int, int, str]] = []
+    for label in sorted(set(recent_counter) | set(older_counter)):
+        recent_count = recent_counter.get(label, 0)
+        older_count = older_counter.get(label, 0)
+        delta = recent_count - older_count
+        if delta > 0:
+            direction = 'rising'
+        elif delta < 0:
+            direction = 'cooling'
+        else:
+            direction = 'steady'
+        trend_rows.append((label, recent_count, older_count, delta, direction))
+    trend_rows.sort(key=lambda row: (-row[3], -row[1], row[0]))
     fingerprint_cards = ''.join(
         f'''
         <div class="mini-card">
@@ -74,6 +99,16 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
         '''
         for mode, count in fingerprints.most_common(6)
     ) or '<div class="empty">No failure fingerprints yet.</div>'
+    trend_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">Trend</div>
+          <div class="mini-value">{html.escape(label)}</div>
+          <div class="mini-meta">recent {recent_count} · older {older_count} · {direction}</div>
+        </div>
+        '''
+        for label, recent_count, older_count, _delta, direction in trend_rows[:6]
+    ) or '<div class="empty">No trend data yet.</div>'
 
     case_cards = ''.join(
         f'''
@@ -131,7 +166,7 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
     .stat {{ padding: 18px; }}
     .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
     .stat-value {{ margin-top: 8px; font-size: 28px; font-weight: 800; }}
-    .layout {{ display: grid; grid-template-columns: 1.2fr 2fr; gap: 16px; }}
+    .layout {{ display: grid; grid-template-columns: 1.1fr 1.1fr 1.8fr; gap: 16px; }}
     .section {{ padding: 18px; }}
     .mini-grid {{ display: grid; gap: 12px; }}
     .mini-card {{ padding: 14px; }}
@@ -176,6 +211,11 @@ def build_case_board_html(items: list[dict[str, Any]]) -> str:
         <h2>Recurring Failure Modes</h2>
         <p>Fingerprint clustering for the problems that keep showing up across runs.</p>
         <div class="mini-grid">{fingerprint_cards}</div>
+      </div>
+      <div class="section">
+        <h2>Trend Watch</h2>
+        <p>Which failure fingerprints are rising in the most recent runs.</p>
+        <div class="mini-grid">{trend_cards}</div>
       </div>
       <div class="section">
         <h2>Top Cases</h2>

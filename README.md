@@ -227,6 +227,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - candidate-specific regression reports under `artifacts/regressions/`
 - shareable case folders under `artifacts/cases/`
 - an incident board homepage at `artifacts/cases/index.html`
+- fingerprint trend watch for rising recurring failures
 
 The trace viewer now also highlights:
 - the **first suspicious step**

@@ -38,7 +38,7 @@ def _resolve_inbox_baseline(baseline_name: Optional[str] = None) -> tuple[Option
 def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     active_baseline_name, active_baseline_path, active_baseline_events = _resolve_inbox_baseline(baseline_name)
-    for trace_path in list_traces()[:limit]:
+    for recency_rank, trace_path in enumerate(list_traces()[:limit], start=1):
         events = load_trace(trace_path)
         summary = summarize_run(events)
         priority = summary.get('debug_priority', {})
@@ -79,6 +79,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
         items.append(
             {
                 'trace_file': trace_path.name,
+                'trace_recency_rank': recency_rank,
                 'run_id': events[0].get('run_id') if events else trace_path.stem,
                 'runtime': summary.get('runtime'),
                 'agent_name': summary.get('agent_name'),
