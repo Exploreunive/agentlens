@@ -178,6 +178,7 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'recheck baseline + benchmark' in html
     assert 'Unresolved Regressions' in html
     assert 'Investigating Now' in html
+    assert 'Escalating Now' in html
     assert 'Unassigned High Priority' in html
 
 
@@ -310,6 +311,10 @@ def test_build_case_board_html_marks_rising_fingerprint():
     assert 'Owner Load' in html
     assert 'alice' in html
     assert 'bob' in html
+    assert 'Escalating' in html
+    assert 'trend escalating' in html
+    assert 'first seen recent-a.jsonl' in html
+    assert 'latest seen recent-a.jsonl' in html
 
 
 def test_build_case_board_html_surfaces_unassigned_high_priority_focus():

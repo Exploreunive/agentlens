@@ -260,6 +260,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         for item in items
     ]
     fingerprints = Counter(fingerprint_labels)
+    trace_lookup = {str(item.get('trace_file')): item for item in items}
     leaderboard_rows: list[dict[str, Any]] = []
     for label in sorted(fingerprints):
         matching = [
@@ -269,6 +270,13 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         unresolved = sum(1 for item in matching if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'})
         regression_count = sum(1 for item in matching if item.get('regression_detected'))
         avg_priority = round(sum(int(item.get('priority_score', 0)) for item in matching) / len(matching))
+        trace_names = [str(item.get('trace_file')) for item in matching]
+        first_seen = sorted(trace_names)[0] if trace_names else 'n/a'
+        latest_seen = min(
+            trace_names,
+            key=lambda name: int(trace_lookup.get(name, {}).get('trace_recency_rank', 999999)),
+            default='n/a',
+        )
         leaderboard_rows.append(
             {
                 'label': label,
@@ -276,6 +284,8 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
                 'regressions': regression_count,
                 'unresolved': unresolved,
                 'avg_priority': avg_priority,
+                'first_seen': first_seen,
+                'latest_seen': latest_seen,
             }
         )
     leaderboard_rows.sort(key=lambda row: (-row['count'], -row['regressions'], -row['unresolved'], -row['avg_priority'], row['label']))
@@ -304,12 +314,23 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             direction = 'steady'
         trend_rows.append((label, recent_count, older_count, delta, direction))
     trend_rows.sort(key=lambda row: (-row[3], -row[1], row[0]))
+    escalating_labels = {
+        label
+        for label, recent_count, older_count, delta, _direction in trend_rows
+        if recent_count >= 2 and delta >= 1
+    }
+    escalating_items = [
+        item
+        for item in unresolved_items
+        if ((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels
+    ]
     leaderboard_cards = ''.join(
         f'''
         <div class="mini-card">
           <div class="mini-label">Recurring Issue</div>
           <div class="mini-value">{html.escape(str(row["label"]))}</div>
           <div class="mini-meta">cases {row["count"]} · regressions {row["regressions"]} · unresolved {row["unresolved"]} · avg priority {row["avg_priority"]}</div>
+          <div class="mini-meta">first seen {html.escape(str(row["first_seen"]))} · latest seen {html.escape(str(row["latest_seen"]))}</div>
         </div>
         '''
         for row in leaderboard_rows[:6]
@@ -317,7 +338,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     trend_cards = ''.join(
         f'''
         <div class="mini-card">
-          <div class="mini-label">Trend</div>
+          <div class="mini-label">{"Escalating" if label in escalating_labels else "Trend"}</div>
           <div class="mini-value">{html.escape(label)}</div>
           <div class="mini-meta">recent {recent_count} · older {older_count} · {direction}</div>
         </div>
@@ -370,6 +391,11 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
                 'description': 'Cases currently owned and in active debugging.',
             },
             {
+                'label': 'Escalating Now',
+                'count': len(escalating_items),
+                'description': 'Open incidents whose recurring fingerprint is rising in recent runs.',
+            },
+            {
                 'label': 'Unassigned High Priority',
                 'count': len(unassigned_high_priority),
                 'description': 'High-risk incidents with no explicit owner yet.',
@@ -385,6 +411,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
           <div class="mini-meta">owner {html.escape(str(item.get("case_owner") or DEFAULT_CASE_OWNER))}</div>
           <div class="mini-meta">{html.escape(str(item.get("case_next_step") or "No next step recorded yet."))}</div>
           <div class="mini-meta">recheck {'baseline + benchmark' if item.get('regression_detected') else 'trace + inbox'}</div>
+          <div class="mini-meta">trend {'escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable'}</div>
         </div>
         '''
         for item in action_queue
@@ -407,6 +434,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             <span>status: <strong>{html.escape(str(item.get('case_status') or DEFAULT_CASE_STATUS))}</strong></span>
             <span>owner: <strong>{html.escape(str(item.get('case_owner') or DEFAULT_CASE_OWNER))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
+            <span>trend: <strong>{html.escape('escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable')}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get('final_answer') or 'No final answer captured.'))}</div>
           <div class="answer" style="margin-top: 12px;">next step: {html.escape(str(item.get('case_next_step') or 'No next step recorded yet.'))}</div>
