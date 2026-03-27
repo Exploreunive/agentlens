@@ -48,6 +48,8 @@ def test_write_case_index_creates_shareable_readme(tmp_path: Path):
     assert 'artifacts/views/demo.html' in text
     assert 'artifacts/regressions/golden__demo.md' in text
     assert '## Recheck Commands' in text
+    assert '## Fix Validation Summary' in text
+    assert '- validation_status: `blocked`' in text
     assert 'python3 cli.py regression check golden' in text
     assert 'pytest -q' in text
     assert parse_case_status(tmp_path / out) == 'new'
@@ -176,9 +178,11 @@ def test_build_case_board_html_contains_summary_cards():
     assert 'owner alice' in html
     assert 'Replay the wrong tool selection.' in html
     assert 'recheck baseline + benchmark' in html
+    assert 'validation blocked' in html
     assert 'Unresolved Regressions' in html
     assert 'Investigating Now' in html
     assert 'Escalating Now' in html
+    assert 'Ready To Close' in html
     assert 'Unassigned High Priority' in html
 
 
@@ -385,3 +389,37 @@ def test_write_case_index_adds_benchmark_recheck_when_baseline_exists(tmp_path: 
     assert '- benchmark_baseline: `local-bench`' in text
     assert 'python3 cli.py bench check local-bench' in text
     assert 'Re-run the benchmark gate against local-bench.' in text
+
+
+def test_build_case_board_html_marks_ready_to_close_when_validation_is_clean():
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 40,
+                'priority_level': 'medium',
+                'failure_mode': 'wrong_tool_selected',
+                'failure_fingerprint': {'label': 'wrong-tool-selected', 'id': 'a'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'done',
+                'regression_detected': False,
+                'case_status': 'investigating',
+                'case_owner': 'alice',
+                'case_next_step': 'Verify the rerun.',
+                'case_index_path': 'artifacts/cases/run-a/README.md',
+                'trace_view_path': 'artifacts/views/run-a.html',
+                'regression_report_path': None,
+            }
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 5, 'partial': 0, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 0,
+            'regressed_fixtures': [],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
+        },
+    )
+    assert 'validation ready_to_close' in html
+    assert 'Ready To Close' in html

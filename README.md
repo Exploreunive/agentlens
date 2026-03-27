@@ -238,6 +238,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - an action queue that lifts unresolved baseline regressions to the top
 - focus views for unresolved regressions, in-progress incidents, and unassigned high-priority cases
 - per-case repair checklists and recheck commands so fixes can be verified against baselines and benchmark gates
+- fix validation summaries that tell you whether a case is still blocked or ready to close
 
 The trace viewer now also highlights:
 - the **first suspicious step**

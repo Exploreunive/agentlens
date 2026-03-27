@@ -77,6 +77,32 @@ def _repair_checklist_items(
     return items
 
 
+def _fix_validation_summary(
+    *,
+    case_status: str,
+    regression_detected: bool,
+    benchmark_gate: dict[str, Any] | None,
+) -> dict[str, str | bool]:
+    benchmark_regressions = int((benchmark_gate or {}).get('regressions', 0))
+    baseline_ok = not regression_detected
+    benchmark_ok = benchmark_regressions == 0
+    if baseline_ok and benchmark_ok and case_status == 'fixed':
+        status = 'verified'
+        recommendation = 'Safe to keep this case fixed unless the fingerprint reappears.'
+    elif baseline_ok and benchmark_ok:
+        status = 'ready_to_close'
+        recommendation = 'Validation is clean. You can mark this case fixed after a final review.'
+    else:
+        status = 'blocked'
+        recommendation = 'Do not mark this case fixed yet. One or more validation gates are still failing.'
+    return {
+        'status': status,
+        'baseline_ok': baseline_ok,
+        'benchmark_ok': benchmark_ok,
+        'recommendation': recommendation,
+    }
+
+
 def case_dir_path(trace_name: str) -> Path:
     return CASEFILES_DIR / Path(trace_name).stem
 
@@ -119,6 +145,7 @@ def write_case_index(
 
     bundle_path = export_bundle(trace_name, include_diff=True)
     benchmark_baseline_name = resolve_benchmark_baseline_name()
+    benchmark_gate = collect_benchmark_gate_status(benchmark_baseline_name)
     resolved_status = existing.get('status') or status
     if resolved_status not in VALID_CASE_STATUSES:
         resolved_status = DEFAULT_CASE_STATUS
@@ -157,6 +184,11 @@ def write_case_index(
         baseline_name=baseline_name,
         benchmark_baseline_name=benchmark_baseline_name,
     )
+    validation = _fix_validation_summary(
+        case_status=resolved_status,
+        regression_detected=bool(regression_report_path),
+        benchmark_gate=benchmark_gate,
+    )
 
     lines += [
         '',
@@ -174,6 +206,12 @@ def write_case_index(
     ]
     lines.extend(f'- `{command}`' for command in recheck_commands)
     lines += [
+        '',
+        '## Fix Validation Summary',
+        f"- validation_status: `{validation['status']}`",
+        f"- baseline_validation: `{'clean' if validation['baseline_ok'] else 'regressed'}`",
+        f"- benchmark_validation: `{'clean' if validation['benchmark_ok'] else 'regressed'}`",
+        f"- closure_recommendation: {validation['recommendation']}",
         '',
         '## Share Checklist',
         '- Open the trace view first.',
@@ -236,6 +274,15 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     unresolved_regressions = [
         item for item in unresolved_items if item.get('regression_detected')
     ]
+    validation_rows = [
+        _fix_validation_summary(
+            case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS),
+            regression_detected=bool(item.get('regression_detected')),
+            benchmark_gate=benchmark_gate,
+        )
+        for item in items
+    ]
+    ready_to_close_count = sum(1 for row in validation_rows if row.get('status') == 'ready_to_close')
     investigating_items = [
         item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) == 'investigating'
     ]
@@ -396,6 +443,11 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
                 'description': 'Open incidents whose recurring fingerprint is rising in recent runs.',
             },
             {
+                'label': 'Ready To Close',
+                'count': ready_to_close_count,
+                'description': 'Cases whose baseline and benchmark validation are both clean.',
+            },
+            {
                 'label': 'Unassigned High Priority',
                 'count': len(unassigned_high_priority),
                 'description': 'High-risk incidents with no explicit owner yet.',
@@ -412,6 +464,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
           <div class="mini-meta">{html.escape(str(item.get("case_next_step") or "No next step recorded yet."))}</div>
           <div class="mini-meta">recheck {'baseline + benchmark' if item.get('regression_detected') else 'trace + inbox'}</div>
           <div class="mini-meta">trend {'escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable'}</div>
+          <div class="mini-meta">validation {html.escape(str(_fix_validation_summary(case_status=str(item.get("case_status") or DEFAULT_CASE_STATUS), regression_detected=bool(item.get("regression_detected")), benchmark_gate=benchmark_gate).get("status")))}</div>
         </div>
         '''
         for item in action_queue
@@ -435,6 +488,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             <span>owner: <strong>{html.escape(str(item.get('case_owner') or DEFAULT_CASE_OWNER))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
             <span>trend: <strong>{html.escape('escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable')}</strong></span>
+            <span>validation: <strong>{html.escape(str(_fix_validation_summary(case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS), regression_detected=bool(item.get('regression_detected')), benchmark_gate=benchmark_gate).get('status')))}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get('final_answer') or 'No final answer captured.'))}</div>
           <div class="answer" style="margin-top: 12px;">next step: {html.escape(str(item.get('case_next_step') or 'No next step recorded yet.'))}</div>
