@@ -221,6 +221,7 @@ python3 cli.py bundle export
 python3 cli.py inbox                 # rank recent traces into a debug inbox
 python3 cli.py inbox --baseline good-run
 python3 cli.py case update latest --status investigating --owner alice --next-step "Replay the failing tool call"
+python3 cli.py case update latest --status fixed --force   # override the validation guard only when you mean it
 python3 cli.py bench report          # render benchmark-inspired coverage artifacts
 python3 cli.py bench baseline save golden-bench
 python3 cli.py bench check golden-bench
@@ -239,6 +240,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - focus views for unresolved regressions, in-progress incidents, and unassigned high-priority cases
 - per-case repair checklists and recheck commands so fixes can be verified against baselines and benchmark gates
 - fix validation summaries that tell you whether a case is still blocked or ready to close
+- a fixed-state guard so `case update --status fixed` is blocked until validation is clean, unless you intentionally pass `--force`
 
 The trace viewer now also highlights:
 - the **first suspicious step**

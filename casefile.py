@@ -124,6 +124,23 @@ def parse_case_metadata(case_index_path: str | Path) -> dict[str, str]:
     return metadata
 
 
+def parse_case_context(case_index_path: str | Path) -> dict[str, str | None]:
+    path = Path(case_index_path)
+    context = {
+        'baseline_watch': None,
+        'regression_report': None,
+        'benchmark_baseline': None,
+    }
+    if not path.exists():
+        return context
+    for line in path.read_text(encoding='utf-8').splitlines():
+        for key in ('baseline_watch', 'regression_report', 'benchmark_baseline'):
+            value = _extract_backtick_value(line, key)
+            if value is not None:
+                context[key] = value
+    return context
+
+
 def write_case_index(
     *,
     trace_name: str,
@@ -234,15 +251,32 @@ def update_case_index(
     status: str | None = None,
     owner: str | None = None,
     next_step: str | None = None,
+    force: bool = False,
 ) -> Path:
     out = case_dir_path(trace_name) / 'README.md'
     out.parent.mkdir(parents=True, exist_ok=True)
     if status is not None and status not in VALID_CASE_STATUSES:
         raise SystemExit(f'Invalid case status: {status}')
     metadata = parse_case_metadata(out)
+    context = parse_case_context(out)
+    target_status = status or metadata.get('status') or DEFAULT_CASE_STATUS
+    benchmark_gate = collect_benchmark_gate_status(str(context.get('benchmark_baseline')) if context.get('benchmark_baseline') else None)
+    validation = _fix_validation_summary(
+        case_status=target_status,
+        regression_detected=bool(context.get('regression_report')),
+        benchmark_gate=benchmark_gate,
+    )
+    if target_status == 'fixed' and validation.get('status') not in {'verified'} and not force:
+        raise SystemExit(
+            'Case is not ready to mark fixed yet. '
+            f"validation_status={validation.get('status')} "
+            f"baseline={'clean' if validation.get('baseline_ok') else 'regressed'} "
+            f"benchmark={'clean' if validation.get('benchmark_ok') else 'regressed'}. "
+            'Use --force only if you intentionally want to override the validation guard.'
+        )
     current_lines = out.read_text(encoding='utf-8').splitlines() if out.exists() else ['# AgentLens Case File', '']
     replacements = {
-        'status': status or metadata.get('status') or DEFAULT_CASE_STATUS,
+        'status': target_status,
         'owner': owner or metadata.get('owner') or DEFAULT_CASE_OWNER,
         'next_step': next_step or metadata.get('next_step') or '',
     }

@@ -229,3 +229,66 @@ def test_cli_supports_case_update(tmp_path: Path):
     assert '- status: `investigating`' in text
     assert '- owner: `alice`' in text
     assert '- next_step: `Replay the failing tool call with fixed inputs.`' in text
+
+
+def test_cli_blocks_fixed_case_update_when_validation_is_not_clean(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert baseline_save.returncode == 0, baseline_save.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox', '--baseline', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+
+    case_readmes = list((work / 'artifacts' / 'cases').glob('*/README.md'))
+    blocked_case = next(
+        readme for readme in case_readmes if '- regression_report: `' in readme.read_text(encoding='utf-8')
+    )
+    blocked_trace = blocked_case.parent.name
+
+    case_update = subprocess.run(
+        [sys.executable, 'cli.py', 'case', 'update', blocked_trace, '--status', 'fixed'],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert case_update.returncode != 0
+    assert 'Case is not ready to mark fixed yet.' in case_update.stderr
+    assert '--force' in case_update.stderr
+
+
+def test_cli_supports_force_fixed_case_update_override(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert baseline_save.returncode == 0, baseline_save.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox', '--baseline', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+
+    case_readmes = list((work / 'artifacts' / 'cases').glob('*/README.md'))
+    blocked_case = next(
+        readme for readme in case_readmes if '- regression_report: `' in readme.read_text(encoding='utf-8')
+    )
+    blocked_trace = blocked_case.parent.name
+
+    case_update = subprocess.run(
+        [sys.executable, 'cli.py', 'case', 'update', blocked_trace, '--status', 'fixed', '--force'],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert case_update.returncode == 0, case_update.stderr
+
+    updated_path = case_update.stdout.strip().split('Updated ', 1)[1]
+    readme = work / updated_path
+    text = readme.read_text(encoding='utf-8')
+    assert '- status: `fixed`' in text

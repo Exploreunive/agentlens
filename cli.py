@@ -129,6 +129,7 @@ def cmd_case_update(args: argparse.Namespace) -> int:
         status=args.status,
         owner=args.owner,
         next_step=args.next_step,
+        force=args.force,
     )
     print(f'Updated {out}')
     return 0
@@ -214,6 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_case_update.add_argument('--status', help='new, investigating, recurring, fixed, or ignored')
     p_case_update.add_argument('--owner', help='person responsible for this case')
     p_case_update.add_argument('--next-step', help='smallest concrete next debugging action')
+    p_case_update.add_argument('--force', action='store_true', help='override validation guard when marking a case fixed')
     p_case_update.set_defaults(func=cmd_case_update)
 
     return parser

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from casefile import (
     build_case_board_html,
+    parse_case_context,
     parse_case_metadata,
     parse_case_status,
     update_case_index,
@@ -98,6 +99,8 @@ def test_write_case_index_preserves_existing_metadata(tmp_path: Path):
     assert metadata['status'] == 'investigating'
     assert metadata['owner'] == 'alice'
     assert metadata['next_step'] == 'Replay the failing tool call with fixture inputs.'
+    context = parse_case_context(tmp_path / out)
+    assert context['baseline_watch'] is None
 
 
 def test_update_case_index_updates_owner_status_and_next_step(tmp_path: Path):
@@ -129,6 +132,69 @@ def test_update_case_index_updates_owner_status_and_next_step(tmp_path: Path):
         'owner': 'alice',
         'next_step': 'Replay the failing branch.',
     }
+
+
+def test_update_case_index_blocks_fixed_when_validation_is_not_clean(tmp_path: Path):
+    readme = tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md'
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        '\n'.join([
+            '# AgentLens Case File',
+            '',
+            '- trace: `demo.jsonl`',
+            '- status: `investigating`',
+            '- owner: `alice`',
+            '- next_step: `Replay the failing branch.`',
+            '- regression_report: `artifacts/regressions/golden__demo.md`',
+            '- benchmark_baseline: `local-bench`',
+        ]) + '\n',
+        encoding='utf-8',
+    )
+    benchmark_baselines = tmp_path / '.agentlens' / 'benchmark_baselines'
+    benchmark_baselines.mkdir(parents=True)
+    (benchmark_baselines / 'local-bench.json').write_text('[]\n', encoding='utf-8')
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        try:
+            update_case_index('demo', status='fixed')
+            assert False, 'expected fixed-state guard to block closing the case'
+        except SystemExit as exc:
+            assert 'Case is not ready to mark fixed yet.' in str(exc)
+            assert 'validation_status=blocked' in str(exc)
+    finally:
+        os.chdir(previous_cwd)
+
+
+def test_update_case_index_allows_force_fixed_override(tmp_path: Path):
+    readme = tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md'
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        '\n'.join([
+            '# AgentLens Case File',
+            '',
+            '- trace: `demo.jsonl`',
+            '- status: `investigating`',
+            '- owner: `alice`',
+            '- next_step: `Replay the failing branch.`',
+            '- regression_report: `artifacts/regressions/golden__demo.md`',
+            '- benchmark_baseline: `local-bench`',
+        ]) + '\n',
+        encoding='utf-8',
+    )
+    benchmark_baselines = tmp_path / '.agentlens' / 'benchmark_baselines'
+    benchmark_baselines.mkdir(parents=True)
+    (benchmark_baselines / 'local-bench.json').write_text('[]\n', encoding='utf-8')
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        out = update_case_index('demo', status='fixed', force=True)
+    finally:
+        os.chdir(previous_cwd)
+
+    assert parse_case_metadata(tmp_path / out)['status'] == 'fixed'
 
 
 def test_build_case_board_html_contains_summary_cards():
