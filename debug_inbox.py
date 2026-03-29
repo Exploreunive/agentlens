@@ -4,7 +4,8 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from casefile import parse_case_metadata, parse_case_status, write_case_board, write_case_index
+from casefile import derive_case_workflow_state, parse_case_metadata, parse_case_status, write_case_board, write_case_index
+from benchmark_report import collect_benchmark_gate_status
 from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
 from viewer import write_trace_view
@@ -38,6 +39,7 @@ def _resolve_inbox_baseline(baseline_name: Optional[str] = None) -> tuple[Option
 def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     active_baseline_name, active_baseline_path, active_baseline_events = _resolve_inbox_baseline(baseline_name)
+    benchmark_gate = collect_benchmark_gate_status()
     for recency_rank, trace_path in enumerate(list_traces()[:limit], start=1):
         events = load_trace(trace_path)
         summary = summarize_run(events)
@@ -78,6 +80,11 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
         )
         case_metadata = parse_case_metadata(case_index_path)
         case_status = parse_case_status(case_index_path)
+        case_workflow_state = derive_case_workflow_state(
+            case_status=case_status,
+            regression_detected=regression_detected,
+            benchmark_gate=benchmark_gate,
+        )
 
         items.append(
             {
@@ -103,6 +110,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
                 'regression_report_path': str(regression_report) if regression_report else None,
                 'case_index_path': str(case_index_path),
                 'case_status': case_status,
+                'case_workflow_state': case_workflow_state,
                 'case_owner': case_metadata.get('owner'),
                 'case_next_step': case_metadata.get('next_step'),
             }
@@ -135,6 +143,7 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         lines.append(f"- agent: `{item.get('agent_name')}`")
         lines.append(f"- answer_risk: `{item.get('answer_risk')}`")
         lines.append(f"- failure_mode: `{item.get('failure_mode')}`")
+        lines.append(f"- workflow_state: `{item.get('case_workflow_state')}`")
         if item.get('baseline_name'):
             lines.append(f"- baseline_watch: `{item.get('baseline_name')}` -> regression=`{item.get('regression_detected')}`")
         lines.append(f"- trace_view: `{item.get('trace_view_path')}`")
@@ -179,6 +188,7 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <span>agent: <strong>{html.escape(str(item.get("agent_name") or "unknown"))}</strong></span>
                 <span>risk: <strong>{html.escape(str(item.get("answer_risk") or "unknown"))}</strong></span>
                 <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "none"))}</strong></span>
+                <span>workflow: <strong>{html.escape(str(item.get("case_workflow_state") or "new"))}</strong></span>
                 <span>baseline watch: <strong>{html.escape("regressed" if item.get("regression_detected") else "clean")}</strong></span>
               </div>
               <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>

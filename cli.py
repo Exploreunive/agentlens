@@ -7,7 +7,7 @@ from pathlib import Path
 
 from benchmark_report import save_benchmark_baseline, write_benchmark_regression_report, write_benchmark_report
 from bundle_export import export_bundle
-from casefile import update_case_index
+from casefile import case_dir_path, parse_case_metadata, update_case_index
 from debug_inbox import write_debug_inbox, write_debug_inbox_html
 from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
 
@@ -124,13 +124,18 @@ def cmd_bench_check(args: argparse.Namespace) -> int:
 
 
 def cmd_case_update(args: argparse.Namespace) -> int:
+    trace_name = _resolve_trace_name(args.trace)
+    case_index = case_dir_path(trace_name) / 'README.md'
+    prev_status = parse_case_metadata(case_index).get('status', 'new')
     out = update_case_index(
-        _resolve_trace_name(args.trace),
+        trace_name,
         status=args.status,
         owner=args.owner,
         next_step=args.next_step,
         force=args.force,
     )
+    if prev_status == 'fixed' and args.status and args.status != 'fixed':
+        print('Case reopened: a previously fixed fingerprint resurfaced, please re-triage in the incident board.')
     print(f'Updated {out}')
     return 0
 

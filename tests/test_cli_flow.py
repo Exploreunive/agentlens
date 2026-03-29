@@ -292,3 +292,40 @@ def test_cli_supports_force_fixed_case_update_override(tmp_path: Path):
     readme = work / updated_path
     text = readme.read_text(encoding='utf-8')
     assert '- status: `fixed`' in text
+
+
+def test_cli_reports_case_reopened_when_fixed_enters_investigating(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    baseline_save = subprocess.run([sys.executable, 'cli.py', 'baseline', 'save', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert baseline_save.returncode == 0, baseline_save.stderr
+
+    inbox = subprocess.run([sys.executable, 'cli.py', 'inbox', '--baseline', 'golden-run'], cwd=work, capture_output=True, text=True)
+    assert inbox.returncode == 0, inbox.stderr
+
+    case_readmes = list((work / 'artifacts' / 'cases').glob('*/README.md'))
+    blocked_case = next(
+        readme for readme in case_readmes if '- regression_report: `' in readme.read_text(encoding='utf-8')
+    )
+    blocked_trace = blocked_case.parent.name
+
+    fixed = subprocess.run(
+        [sys.executable, 'cli.py', 'case', 'update', blocked_trace, '--status', 'fixed', '--force'],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert fixed.returncode == 0, fixed.stderr
+
+    reopened = subprocess.run(
+        [sys.executable, 'cli.py', 'case', 'update', blocked_trace, '--status', 'investigating'],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert reopened.returncode == 0, reopened.stderr
+    assert 'Case reopened' in reopened.stdout

@@ -103,6 +103,26 @@ def _fix_validation_summary(
     }
 
 
+def derive_case_workflow_state(
+    *,
+    case_status: str,
+    regression_detected: bool,
+    benchmark_gate: dict[str, Any] | None,
+) -> str:
+    validation = _fix_validation_summary(
+        case_status=case_status,
+        regression_detected=regression_detected,
+        benchmark_gate=benchmark_gate,
+    )
+    if case_status == 'ignored':
+        return 'ignored'
+    if case_status == 'fixed':
+        if validation.get('status') == 'verified':
+            return 'verified'
+        return 'reopened'
+    return case_status
+
+
 def case_dir_path(trace_name: str) -> Path:
     return CASEFILES_DIR / Path(trace_name).stem
 
@@ -206,6 +226,11 @@ def write_case_index(
         regression_detected=bool(regression_report_path),
         benchmark_gate=benchmark_gate,
     )
+    workflow_state = derive_case_workflow_state(
+        case_status=resolved_status,
+        regression_detected=bool(regression_report_path),
+        benchmark_gate=benchmark_gate,
+    )
 
     lines += [
         '',
@@ -225,6 +250,7 @@ def write_case_index(
     lines += [
         '',
         '## Fix Validation Summary',
+        f"- workflow_state: `{workflow_state}`",
         f"- validation_status: `{validation['status']}`",
         f"- baseline_validation: `{'clean' if validation['baseline_ok'] else 'regressed'}`",
         f"- benchmark_validation: `{'clean' if validation['benchmark_ok'] else 'regressed'}`",
@@ -301,24 +327,36 @@ def update_case_index(
 
 
 def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[dict[str, Any]] = None) -> str:
-    regressions = [item for item in items if item.get('regression_detected')]
+    gate = benchmark_gate or {}
+    enriched_items: list[dict[str, Any]] = []
+    for item in items:
+        validation = _fix_validation_summary(
+            case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS),
+            regression_detected=bool(item.get('regression_detected')),
+            benchmark_gate=gate,
+        )
+        workflow_state = derive_case_workflow_state(
+            case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS),
+            regression_detected=bool(item.get('regression_detected')),
+            benchmark_gate=gate,
+        )
+        enriched = dict(item)
+        enriched['validation_summary'] = validation
+        enriched['workflow_state'] = workflow_state
+        enriched_items.append(enriched)
+
+    regressions = [item for item in enriched_items if item.get('regression_detected')]
     unresolved_items = [
-        item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'}
+        item for item in enriched_items if str(item.get('workflow_state')) not in {'verified', 'ignored'}
     ]
     unresolved_regressions = [
         item for item in unresolved_items if item.get('regression_detected')
     ]
-    validation_rows = [
-        _fix_validation_summary(
-            case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS),
-            regression_detected=bool(item.get('regression_detected')),
-            benchmark_gate=benchmark_gate,
-        )
-        for item in items
-    ]
+    reopened_items = [item for item in enriched_items if item.get('workflow_state') == 'reopened']
+    validation_rows = [dict(item.get('validation_summary') or {}) for item in enriched_items]
     ready_to_close_count = sum(1 for row in validation_rows if row.get('status') == 'ready_to_close')
     investigating_items = [
-        item for item in items if (item.get('case_status') or DEFAULT_CASE_STATUS) == 'investigating'
+        item for item in enriched_items if (item.get('workflow_state') or DEFAULT_CASE_STATUS) == 'investigating'
     ]
     unassigned_high_priority = [
         item
@@ -328,27 +366,28 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
     action_queue = sorted(
         unresolved_items,
         key=lambda item: (
+            item.get('workflow_state') != 'reopened',
             not bool(item.get('regression_detected')),
             -int(item.get('priority_score', 0)),
             int(item.get('trace_recency_rank', 999999)),
             str(item.get('trace_file')),
         ),
     )[:5]
-    top_cases = sorted(items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
-    statuses = Counter((item.get('case_status') or DEFAULT_CASE_STATUS) for item in items)
+    top_cases = sorted(enriched_items, key=lambda item: (-int(item.get('priority_score', 0)), str(item.get('trace_file'))))[:6]
+    statuses = Counter((item.get('workflow_state') or DEFAULT_CASE_STATUS) for item in enriched_items)
     fingerprint_labels = [
         (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
-        for item in items
+        for item in enriched_items
     ]
     fingerprints = Counter(fingerprint_labels)
-    trace_lookup = {str(item.get('trace_file')): item for item in items}
+    trace_lookup = {str(item.get('trace_file')): item for item in enriched_items}
     leaderboard_rows: list[dict[str, Any]] = []
     for label in sorted(fingerprints):
         matching = [
-            item for item in items
+            item for item in enriched_items
             if ((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') == label
         ]
-        unresolved = sum(1 for item in matching if (item.get('case_status') or DEFAULT_CASE_STATUS) not in {'fixed', 'ignored'})
+        unresolved = sum(1 for item in matching if (item.get('workflow_state') or DEFAULT_CASE_STATUS) not in {'verified', 'ignored'})
         regression_count = sum(1 for item in matching if item.get('regression_detected'))
         avg_priority = round(sum(int(item.get('priority_score', 0)) for item in matching) / len(matching))
         trace_names = [str(item.get('trace_file')) for item in matching]
@@ -370,7 +409,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             }
         )
     leaderboard_rows.sort(key=lambda row: (-row['count'], -row['regressions'], -row['unresolved'], -row['avg_priority'], row['label']))
-    recent_items = sorted(items, key=lambda item: int(item.get('trace_recency_rank', 999999)))
+    recent_items = sorted(enriched_items, key=lambda item: int(item.get('trace_recency_rank', 999999)))
     split = max(1, len(recent_items) // 2)
     recent_window = recent_items[:split]
     older_window = recent_items[split:]
@@ -437,7 +476,6 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         '''
         for owner, count in sorted(owner_rows.items(), key=lambda row: (-row[1], row[0]))[:6]
     ) or '<div class="empty">No owners assigned yet.</div>'
-    gate = benchmark_gate or {}
     coverage = gate.get('coverage') or {}
     regressed_fixtures = gate.get('regressed_fixtures') or []
     gate_cards = ''.join(
@@ -477,6 +515,11 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
                 'description': 'Open incidents whose recurring fingerprint is rising in recent runs.',
             },
             {
+                'label': 'Reopened',
+                'count': len(reopened_items),
+                'description': 'Cases that were marked fixed but are no longer validation-clean.',
+            },
+            {
                 'label': 'Ready To Close',
                 'count': ready_to_close_count,
                 'description': 'Cases whose baseline and benchmark validation are both clean.',
@@ -493,12 +536,12 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         <div class="mini-card">
           <div class="mini-label">Next Action</div>
           <div class="mini-value">{html.escape(str(item.get("trace_file")))}</div>
-          <div class="mini-meta">status {html.escape(str(item.get("case_status") or DEFAULT_CASE_STATUS))} · priority {html.escape(str(item.get("priority_score", 0)))} · {'baseline regression' if item.get('regression_detected') else 'incident review'}</div>
+          <div class="mini-meta">status {html.escape(str(item.get("workflow_state") or DEFAULT_CASE_STATUS))} · priority {html.escape(str(item.get("priority_score", 0)))} · {'baseline regression' if item.get('regression_detected') else 'incident review'}</div>
           <div class="mini-meta">owner {html.escape(str(item.get("case_owner") or DEFAULT_CASE_OWNER))}</div>
           <div class="mini-meta">{html.escape(str(item.get("case_next_step") or "No next step recorded yet."))}</div>
           <div class="mini-meta">recheck {'baseline + benchmark' if item.get('regression_detected') else 'trace + inbox'}</div>
           <div class="mini-meta">trend {'escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable'}</div>
-          <div class="mini-meta">validation {html.escape(str(_fix_validation_summary(case_status=str(item.get("case_status") or DEFAULT_CASE_STATUS), regression_detected=bool(item.get("regression_detected")), benchmark_gate=benchmark_gate).get("status")))}</div>
+          <div class="mini-meta">validation {html.escape(str((item.get("validation_summary") or {}).get("status") or "unknown"))}</div>
         </div>
         '''
         for item in action_queue
@@ -509,7 +552,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         <section class="case-card level-{html.escape(str(item.get("priority_level", "low")))}">
           <div class="case-head">
             <div>
-              <div class="eyebrow">{'Regression case' if item.get('regression_detected') else 'Incident case'}</div>
+              <div class="eyebrow">{'Reopened case' if item.get('workflow_state') == 'reopened' else ('Regression case' if item.get('regression_detected') else 'Incident case')}</div>
               <h2>{html.escape(str(item.get('trace_file')))}</h2>
             </div>
             <div class="score">{html.escape(str(item.get('priority_score', 0)))}</div>
@@ -518,11 +561,11 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             <span>failure: <strong>{html.escape(str(item.get('failure_mode') or 'unknown'))}</strong></span>
             <span>fingerprint: <strong>{html.escape(str(((item.get('failure_fingerprint') or {}).get('label')) or 'unknown'))}</strong></span>
             <span>risk: <strong>{html.escape(str(item.get('answer_risk') or 'unknown'))}</strong></span>
-            <span>status: <strong>{html.escape(str(item.get('case_status') or DEFAULT_CASE_STATUS))}</strong></span>
+            <span>status: <strong>{html.escape(str(item.get('workflow_state') or DEFAULT_CASE_STATUS))}</strong></span>
             <span>owner: <strong>{html.escape(str(item.get('case_owner') or DEFAULT_CASE_OWNER))}</strong></span>
             <span>baseline: <strong>{html.escape('regressed' if item.get('regression_detected') else 'clean')}</strong></span>
             <span>trend: <strong>{html.escape('escalating' if (((item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure') in escalating_labels) else 'stable')}</strong></span>
-            <span>validation: <strong>{html.escape(str(_fix_validation_summary(case_status=str(item.get('case_status') or DEFAULT_CASE_STATUS), regression_detected=bool(item.get('regression_detected')), benchmark_gate=benchmark_gate).get('status')))}</strong></span>
+            <span>validation: <strong>{html.escape(str((item.get('validation_summary') or {}).get('status') or 'unknown'))}</strong></span>
           </div>
           <div class="answer">{html.escape(str(item.get('final_answer') or 'No final answer captured.'))}</div>
           <div class="answer" style="margin-top: 12px;">next step: {html.escape(str(item.get('case_next_step') or 'No next step recorded yet.'))}</div>

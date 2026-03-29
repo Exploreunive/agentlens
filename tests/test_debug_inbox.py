@@ -22,6 +22,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
             'suspicious_signals': [{'type': 'memory_conflict'}],
             'baseline_name': 'golden',
             'regression_detected': True,
+            'case_workflow_state': 'reopened',
             'regression_reasons': ['Candidate emits more suspicious signals than the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -32,6 +33,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
     assert 'priority: `high` (82/100)' in report
     assert 'why this is prioritized' in report
     assert 'baseline_watch: `golden` -> regression=`True`' in report
+    assert 'workflow_state: `reopened`' in report
     assert 'trace_view: `artifacts/views/run-a.html`' in report
     assert 'case_file: `artifacts/cases/run-a/README.md`' in report
     assert 'regression_report: `artifacts/regressions/golden__run-a.md`' in report
@@ -53,6 +55,7 @@ def test_build_debug_inbox_html_contains_cards():
             'suspicious_signals': [{'type': 'memory_conflict', 'event_index': 7}],
             'baseline_name': 'golden',
             'regression_detected': True,
+            'case_workflow_state': 'reopened',
             'regression_reasons': ['Final answer changed relative to the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -62,6 +65,7 @@ def test_build_debug_inbox_html_contains_cards():
     assert '<title>AgentLens Debug Inbox</title>' in html
     assert 'Recent traces ranked by debugging value' in html
     assert 'run-a.jsonl' in html
+    assert 'reopened' in html
     assert 'regressed' in html
     assert 'artifacts/views/run-a.html' in html
     assert 'artifacts/cases/run-a/README.md' in html
@@ -134,6 +138,7 @@ def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_p
     assert items[0]['trace_file'] == 'candidate.jsonl'
     assert items[0]['regression_detected'] is True
     assert items[0]['baseline_name'] == 'golden'
+    assert items[0]['case_workflow_state'] == 'new'
     assert items[0]['trace_view_path'].endswith('candidate.html')
     assert items[0]['case_index_path'].endswith('candidate/README.md')
     assert items[0]['case_status'] == 'new'
@@ -176,6 +181,57 @@ def test_collect_debug_inbox_skips_regression_report_for_non_comparable_run(tmp_
     assert candidate_item['regression_detected'] is False
     assert candidate_item['regression_report_path'] is None
     assert 'Runtime differs' in candidate_item['regression_reasons'][0]
+
+
+def test_collect_debug_inbox_marks_reopened_when_fixed_case_regresses(tmp_path: Path):
+    previous_cwd = Path.cwd()
+    try:
+        import os
+        os.chdir(tmp_path)
+        traces = Path('.agentlens/traces')
+        traces.mkdir(parents=True)
+        baseline_trace = traces / 'baseline.jsonl'
+        baseline_trace.write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'baseline', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'baseline', 'type': 'run.end', 'payload': {'final_answer': 'Skip jogging.'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        baselines = Path('.agentlens/baselines')
+        baselines.mkdir(parents=True)
+        (baselines / 'golden.json').write_text(
+            json.dumps({'name': 'golden', 'trace_file': 'baseline.jsonl'}),
+            encoding='utf-8',
+        )
+        (traces / 'candidate.jsonl').write_text(
+            '\n'.join([
+                json.dumps({'run_id': 'candidate', 'type': 'run.start', 'payload': {}}),
+                json.dumps({'run_id': 'candidate', 'type': 'error', 'payload': {'kind': 'memory_conflict', 'message': 'bad recall'}}),
+                json.dumps({'run_id': 'candidate', 'type': 'run.end', 'payload': {'final_answer': 'Jog is fine.'}}),
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        case_dir = Path('artifacts/cases/candidate')
+        case_dir.mkdir(parents=True)
+        (case_dir / 'README.md').write_text(
+            '\n'.join([
+                '# AgentLens Case File',
+                '',
+                '- trace: `candidate.jsonl`',
+                '- status: `fixed`',
+                '- owner: `alice`',
+                '- next_step: `Watch for regressions.`',
+            ]) + '\n',
+            encoding='utf-8',
+        )
+        items = collect_debug_inbox(limit=10, baseline_name='golden')
+    finally:
+        os.chdir(previous_cwd)
+
+    candidate_item = next(item for item in items if item['trace_file'] == 'candidate.jsonl')
+    assert candidate_item['case_status'] == 'fixed'
+    assert candidate_item['case_workflow_state'] == 'reopened'
 
 
 def test_write_debug_inbox_creates_report(tmp_path: Path):

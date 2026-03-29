@@ -241,6 +241,7 @@ When inbox runs with baseline watch enabled, it also prepares:
 - per-case repair checklists and recheck commands so fixes can be verified against baselines and benchmark gates
 - fix validation summaries that tell you whether a case is still blocked or ready to close
 - a fixed-state guard so `case update --status fixed` is blocked until validation is clean, unless you intentionally pass `--force`
+- automatic reopened hints when a previously fixed fingerprint resurfaces and switches back to `investigating`
 
 The trace viewer now also highlights:
 - the **first suspicious step**

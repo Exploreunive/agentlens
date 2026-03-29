@@ -5,6 +5,7 @@ from pathlib import Path
 
 from casefile import (
     build_case_board_html,
+    derive_case_workflow_state,
     parse_case_context,
     parse_case_metadata,
     parse_case_status,
@@ -195,6 +196,15 @@ def test_update_case_index_allows_force_fixed_override(tmp_path: Path):
         os.chdir(previous_cwd)
 
     assert parse_case_metadata(tmp_path / out)['status'] == 'fixed'
+
+
+def test_derive_case_workflow_state_marks_reopened_after_fixed_regression():
+    state = derive_case_workflow_state(
+        case_status='fixed',
+        regression_detected=True,
+        benchmark_gate={'regressions': 0},
+    )
+    assert state == 'reopened'
 
 
 def test_build_case_board_html_contains_summary_cards():
@@ -489,3 +499,38 @@ def test_build_case_board_html_marks_ready_to_close_when_validation_is_clean():
     )
     assert 'validation ready_to_close' in html
     assert 'Ready To Close' in html
+
+
+def test_build_case_board_html_surfaces_reopened_cases():
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 88,
+                'priority_level': 'high',
+                'failure_mode': 'wrong_tool_selected',
+                'failure_fingerprint': {'label': 'wrong-tool-selected', 'id': 'a'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'done',
+                'regression_detected': True,
+                'case_status': 'fixed',
+                'case_owner': 'alice',
+                'case_next_step': 'Reproduce the recurrence.',
+                'case_index_path': 'artifacts/cases/run-a/README.md',
+                'trace_view_path': 'artifacts/views/run-a.html',
+                'regression_report_path': 'artifacts/regressions/golden__run-a.md',
+            }
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 5, 'partial': 0, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 0,
+            'regressed_fixtures': [],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
+        },
+    )
+    assert 'Reopened' in html
+    assert 'Reopened case' in html
+    assert 'status reopened' in html
