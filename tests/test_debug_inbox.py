@@ -23,6 +23,13 @@ def test_build_debug_inbox_report_contains_priority_sections():
             'baseline_name': 'golden',
             'regression_detected': True,
             'case_workflow_state': 'reopened',
+            'fingerprint_recurrence': {
+                'cases': 3,
+                'reopened': 2,
+                'verified': 1,
+                'unresolved': 2,
+                'impact_summary': 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.',
+            },
             'regression_reasons': ['Candidate emits more suspicious signals than the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -34,6 +41,8 @@ def test_build_debug_inbox_report_contains_priority_sections():
     assert 'why this is prioritized' in report
     assert 'baseline_watch: `golden` -> regression=`True`' in report
     assert 'workflow_state: `reopened`' in report
+    assert 'fingerprint_history: `cases=3 reopened=2 verified=1 unresolved=2`' in report
+    assert 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.' in report
     assert 'trace_view: `artifacts/views/run-a.html`' in report
     assert 'case_file: `artifacts/cases/run-a/README.md`' in report
     assert 'regression_report: `artifacts/regressions/golden__run-a.md`' in report
@@ -56,6 +65,13 @@ def test_build_debug_inbox_html_contains_cards():
             'baseline_name': 'golden',
             'regression_detected': True,
             'case_workflow_state': 'reopened',
+            'fingerprint_recurrence': {
+                'cases': 3,
+                'reopened': 2,
+                'verified': 1,
+                'unresolved': 2,
+                'impact_summary': 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.',
+            },
             'regression_reasons': ['Final answer changed relative to the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -66,6 +82,7 @@ def test_build_debug_inbox_html_contains_cards():
     assert 'Recent traces ranked by debugging value' in html
     assert 'run-a.jsonl' in html
     assert 'reopened' in html
+    assert 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.' in html
     assert 'regressed' in html
     assert 'artifacts/views/run-a.html' in html
     assert 'artifacts/cases/run-a/README.md' in html
@@ -100,6 +117,7 @@ def test_collect_debug_inbox_sorts_by_priority_score(tmp_path: Path):
 
     assert items[0]['run_id'] == 'high'
     assert items[0]['priority_score'] >= items[1]['priority_score']
+    assert items[0]['fingerprint_recurrence']['cases'] >= 1
 
 
 def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_path: Path):
@@ -139,6 +157,7 @@ def test_collect_debug_inbox_surfaces_regressions_when_baseline_is_present(tmp_p
     assert items[0]['regression_detected'] is True
     assert items[0]['baseline_name'] == 'golden'
     assert items[0]['case_workflow_state'] == 'new'
+    assert items[0]['fingerprint_recurrence']['cases'] >= 1
     assert items[0]['trace_view_path'].endswith('candidate.html')
     assert items[0]['case_index_path'].endswith('candidate/README.md')
     assert items[0]['case_status'] == 'new'
@@ -232,6 +251,7 @@ def test_collect_debug_inbox_marks_reopened_when_fixed_case_regresses(tmp_path: 
     candidate_item = next(item for item in items if item['trace_file'] == 'candidate.jsonl')
     assert candidate_item['case_status'] == 'fixed'
     assert candidate_item['case_workflow_state'] == 'reopened'
+    assert candidate_item['fingerprint_recurrence']['reopened'] == 1
 
 
 def test_write_debug_inbox_creates_report(tmp_path: Path):

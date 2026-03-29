@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from benchmark_report import collect_benchmark_gate_status, resolve_benchmark_baseline_name
 from bundle_export import export_bundle
+from fingerprints import build_fingerprint_dossiers, fingerprint_report_path
 
 CASEFILES_DIR = Path('artifacts/cases')
 CASE_BOARD_OUT = CASEFILES_DIR / 'index.html'
@@ -169,6 +170,7 @@ def write_case_index(
     priority_level: str,
     priority_score: int,
     failure_mode: str | None = None,
+    failure_fingerprint: dict[str, Any] | None = None,
     baseline_name: Optional[str] = None,
     regression_report_path: Optional[str] = None,
     status: str = DEFAULT_CASE_STATUS,
@@ -192,6 +194,8 @@ def write_case_index(
         trace_view_path=trace_view_path,
         failure_mode=failure_mode,
     )
+    fingerprint_label = str((failure_fingerprint or {}).get('label') or failure_mode or 'unknown_failure')
+    fingerprint_dossier = str(fingerprint_report_path(fingerprint_label))
     lines = [
         '# AgentLens Case File',
         '',
@@ -203,6 +207,8 @@ def write_case_index(
         f'- final_answer: {final_answer}',
         f'- trace_view: `{trace_view_path}`',
         f'- bundle: `{bundle_path}`',
+        f'- fingerprint: `{fingerprint_label}`',
+        f'- fingerprint_dossier: `{fingerprint_dossier}`',
     ]
     if baseline_name:
         lines.append(f'- baseline_watch: `{baseline_name}`')
@@ -409,6 +415,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             }
         )
     leaderboard_rows.sort(key=lambda row: (-row['count'], -row['regressions'], -row['unresolved'], -row['avg_priority'], row['label']))
+    recurrence_rows = build_fingerprint_dossiers(enriched_items)
     recent_items = sorted(enriched_items, key=lambda item: int(item.get('trace_recency_rank', 999999)))
     split = max(1, len(recent_items) // 2)
     recent_window = recent_items[:split]
@@ -451,6 +458,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
           <div class="mini-value">{html.escape(str(row["label"]))}</div>
           <div class="mini-meta">cases {row["count"]} · regressions {row["regressions"]} · unresolved {row["unresolved"]} · avg priority {row["avg_priority"]}</div>
           <div class="mini-meta">first seen {html.escape(str(row["first_seen"]))} · latest seen {html.escape(str(row["latest_seen"]))}</div>
+          <div class="mini-meta">dossier <code>{html.escape(str(fingerprint_report_path(str(row["label"]))))}</code></div>
         </div>
         '''
         for row in leaderboard_rows[:6]
@@ -465,6 +473,18 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         '''
         for label, recent_count, older_count, _delta, direction in trend_rows[:6]
     ) or '<div class="empty">No trend data yet.</div>'
+    recurrence_cards = ''.join(
+        f'''
+        <div class="mini-card">
+          <div class="mini-label">Recurrence Impact</div>
+          <div class="mini-value">{html.escape(str(row["label"]))}</div>
+          <div class="mini-meta">reopened {html.escape(str(row["reopened"]))} · verified {html.escape(str(row["verified"]))} · unresolved {html.escape(str(row["unresolved"]))}</div>
+          <div class="mini-meta">{html.escape(str(row["impact_summary"]))}</div>
+          <div class="mini-meta">active owner {html.escape(str(row.get("active_owner") or "unassigned"))}</div>
+        </div>
+        '''
+        for row in recurrence_rows[:4]
+    ) or '<div class="empty">No recurrence history yet.</div>'
     owner_rows = Counter((item.get('case_owner') or DEFAULT_CASE_OWNER) for item in items)
     owner_cards = ''.join(
         f'''
@@ -573,6 +593,7 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
             <li>Case file: <code>{html.escape(str(item.get('case_index_path') or ''))}</code></li>
             <li>Trace page: <code>{html.escape(str(item.get('trace_view_path') or ''))}</code></li>
             <li>Regression report: <code>{html.escape(str(item.get('regression_report_path') or 'n/a'))}</code></li>
+            <li>Fingerprint dossier: <code>{html.escape(str(fingerprint_report_path(str(((item.get('failure_fingerprint') or {}).get('label')) or item.get('failure_mode') or 'unknown_failure'))))}</code></li>
           </ul>
         </section>
         '''
@@ -677,18 +698,25 @@ def build_case_board_html(items: list[dict[str, Any]], benchmark_gate: Optional[
         <div class="mini-grid">{leaderboard_cards}</div>
       </div>
       <div class="section">
+        <h2>Recurrence Impact</h2>
+        <p>Which fingerprints keep reopening, and whether any repair has actually held after the last regression.</p>
+        <div class="mini-grid">{recurrence_cards}</div>
+      </div>
+      <div class="section">
         <h2>Trend Watch</h2>
         <p>Which failure fingerprints are rising in the most recent runs.</p>
         <div class="mini-grid">{trend_cards}</div>
       </div>
-        <div class="section">
-          <h2>Top Cases</h2>
-          <p>Start with the highest-value incidents first, especially baseline regressions.</p>
-          <p>Status mix: {html.escape(', '.join(f'{key}={value}' for key, value in sorted(statuses.items())) or 'none')}</p>
-          <div class="case-stack">{case_cards}</div>
-        </div>
-      </section>
-      <section class="gate-layout">
+    </section>
+    <section class="layout">
+      <div class="section">
+        <h2>Top Cases</h2>
+        <p>Start with the highest-value incidents first, especially baseline regressions.</p>
+        <p>Status mix: {html.escape(', '.join(f'{key}={value}' for key, value in sorted(statuses.items())) or 'none')}</p>
+        <div class="case-stack">{case_cards}</div>
+      </div>
+    </section>
+    <section class="gate-layout">
         <div class="section">
           <h2>Benchmark Gate</h2>
           <p>Regression-proof detection matters. Keep benchmark coverage visible on the same reliability homepage.</p>

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from casefile import derive_case_workflow_state, parse_case_metadata, parse_case_status, write_case_board, write_case_index
+from fingerprints import build_fingerprint_dossiers, fingerprint_report_path, write_fingerprint_reports
 from benchmark_report import collect_benchmark_gate_status
 from regression import list_baselines, list_traces, load_baseline, load_trace, summarize_regression, write_regression_report
 from analyzer import summarize_run
@@ -34,6 +35,26 @@ def _resolve_inbox_baseline(baseline_name: Optional[str] = None) -> tuple[Option
     name = baselines[0].stem
     trace_path, events = load_baseline(name)
     return name, trace_path, events
+
+
+def _attach_fingerprint_dossier_paths(items: List[Dict[str, Any]]) -> None:
+    for item in items:
+        label = (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
+        item['fingerprint_dossier_path'] = str(fingerprint_report_path(str(label)))
+
+
+def _attach_fingerprint_recurrence(items: List[Dict[str, Any]]) -> None:
+    dossier_map = {str(row.get('label')): row for row in build_fingerprint_dossiers(items)}
+    for item in items:
+        label = (item.get('failure_fingerprint') or {}).get('label') or item.get('failure_mode') or 'unknown_failure'
+        dossier = dossier_map.get(str(label), {})
+        item['fingerprint_recurrence'] = {
+            'cases': int(dossier.get('count', 0) or 0),
+            'reopened': int(dossier.get('reopened', 0) or 0),
+            'verified': int(dossier.get('verified', 0) or 0),
+            'unresolved': int(dossier.get('unresolved', 0) or 0),
+            'impact_summary': str(dossier.get('impact_summary') or ''),
+        }
 
 
 def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -75,6 +96,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
             priority_level=priority_level,
             priority_score=priority_score,
             failure_mode=summary.get('failure_mode'),
+            failure_fingerprint=summary.get('failure_fingerprint'),
             baseline_name=active_baseline_name,
             regression_report_path=str(regression_report) if regression_report else None,
         )
@@ -122,6 +144,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
             str(item.get('trace_file')),
         )
     )
+    _attach_fingerprint_recurrence(items)
     return items
 
 
@@ -144,6 +167,16 @@ def build_debug_inbox_report(items: List[Dict[str, Any]]) -> str:
         lines.append(f"- answer_risk: `{item.get('answer_risk')}`")
         lines.append(f"- failure_mode: `{item.get('failure_mode')}`")
         lines.append(f"- workflow_state: `{item.get('case_workflow_state')}`")
+        recurrence = item.get('fingerprint_recurrence') or {}
+        if recurrence:
+            lines.append(
+                f"- fingerprint_history: `cases={recurrence.get('cases', 0)} reopened={recurrence.get('reopened', 0)} "
+                f"verified={recurrence.get('verified', 0)} unresolved={recurrence.get('unresolved', 0)}`"
+            )
+            if recurrence.get('impact_summary'):
+                lines.append(f"- recurrence_note: {recurrence.get('impact_summary')}")
+        if item.get('fingerprint_dossier_path'):
+            lines.append(f"- fingerprint_dossier: `{item.get('fingerprint_dossier_path')}`")
         if item.get('baseline_name'):
             lines.append(f"- baseline_watch: `{item.get('baseline_name')}` -> regression=`{item.get('regression_detected')}`")
         lines.append(f"- trace_view: `{item.get('trace_view_path')}`")
@@ -189,6 +222,8 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
                 <span>risk: <strong>{html.escape(str(item.get("answer_risk") or "unknown"))}</strong></span>
                 <span>failure: <strong>{html.escape(str(item.get("failure_mode") or "none"))}</strong></span>
                 <span>workflow: <strong>{html.escape(str(item.get("case_workflow_state") or "new"))}</strong></span>
+                <span>recurrence: <strong>{html.escape(str((item.get("fingerprint_recurrence") or {}).get("impact_summary") or "watching"))}</strong></span>
+                <span>fingerprint dossier: <strong>{html.escape(str(item.get("fingerprint_dossier_path") or "pending"))}</strong></span>
                 <span>baseline watch: <strong>{html.escape("regressed" if item.get("regression_detected") else "clean")}</strong></span>
               </div>
               <div class="answer">{html.escape(str(item.get("final_answer") or "No final answer captured."))}</div>
@@ -308,6 +343,8 @@ def build_debug_inbox_html(items: List[Dict[str, Any]]) -> str:
 
 def write_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> Path:
     items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
+    write_fingerprint_reports(items)
+    _attach_fingerprint_dossier_paths(items)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(build_debug_inbox_report(items), encoding='utf-8')
     write_case_board(items)
@@ -316,6 +353,8 @@ def write_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) -> P
 
 def write_debug_inbox_html(limit: int = 10, baseline_name: Optional[str] = None) -> Path:
     items = collect_debug_inbox(limit=limit, baseline_name=baseline_name)
+    write_fingerprint_reports(items)
+    _attach_fingerprint_dossier_paths(items)
     HTML_OUT.parent.mkdir(parents=True, exist_ok=True)
     HTML_OUT.write_text(build_debug_inbox_html(items), encoding='utf-8')
     write_case_board(items)

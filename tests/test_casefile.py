@@ -534,3 +534,55 @@ def test_build_case_board_html_surfaces_reopened_cases():
     assert 'Reopened' in html
     assert 'Reopened case' in html
     assert 'status reopened' in html
+
+
+def test_build_case_board_html_surfaces_recurrence_impact():
+    html = build_case_board_html(
+        [
+            {
+                'trace_file': 'run-a.jsonl',
+                'trace_recency_rank': 1,
+                'priority_score': 92,
+                'priority_level': 'high',
+                'failure_mode': 'wrong_tool_selected',
+                'failure_fingerprint': {'label': 'wrong-tool-selected', 'id': 'a'},
+                'answer_risk': 'hidden_degradation',
+                'final_answer': 'done',
+                'regression_detected': True,
+                'case_status': 'fixed',
+                'case_owner': 'alice',
+                'case_next_step': 'Reproduce the recurrence.',
+                'case_index_path': 'artifacts/cases/run-a/README.md',
+                'trace_view_path': 'artifacts/views/run-a.html',
+                'regression_report_path': 'artifacts/regressions/golden__run-a.md',
+            },
+            {
+                'trace_file': 'run-b.jsonl',
+                'trace_recency_rank': 2,
+                'priority_score': 60,
+                'priority_level': 'medium',
+                'failure_mode': 'wrong_tool_selected',
+                'failure_fingerprint': {'label': 'wrong-tool-selected', 'id': 'b'},
+                'answer_risk': 'visible_failure',
+                'final_answer': 'fixed',
+                'regression_detected': False,
+                'case_status': 'fixed',
+                'case_owner': 'alice',
+                'case_next_step': 'Replay the validated repair path.',
+                'case_index_path': 'artifacts/cases/run-b/README.md',
+                'trace_view_path': 'artifacts/views/run-b.html',
+                'regression_report_path': None,
+            },
+        ],
+        benchmark_gate={
+            'coverage': {'fixtures': 5, 'matched': 5, 'partial': 0, 'missed': 0},
+            'baseline_name': 'local-bench',
+            'regressions': 0,
+            'regressed_fixtures': [],
+            'report_path': 'artifacts/benchmark_report.md',
+            'regression_report_path': 'artifacts/benchmark_regression.md',
+        },
+    )
+    assert 'Recurrence Impact' in html
+    assert '1 verified repair(s) recorded after 1 reopening(s).' in html
+    assert 'active owner alice' in html

@@ -8,7 +8,8 @@ from pathlib import Path
 from benchmark_report import save_benchmark_baseline, write_benchmark_regression_report, write_benchmark_report
 from bundle_export import export_bundle
 from casefile import case_dir_path, parse_case_metadata, update_case_index
-from debug_inbox import write_debug_inbox, write_debug_inbox_html
+from debug_inbox import collect_debug_inbox, write_debug_inbox, write_debug_inbox_html
+from fingerprints import write_fingerprint_reports
 from regression import BASELINE_DIR, list_traces, load_baseline, save_baseline, summarize_regression, load_trace, write_regression_report
 
 ROOT = Path(__file__).resolve().parent
@@ -140,6 +141,14 @@ def cmd_case_update(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fingerprint_report(args: argparse.Namespace) -> int:
+    items = collect_debug_inbox(limit=args.limit, baseline_name=args.baseline)
+    index_out, detail_paths = write_fingerprint_reports(items)
+    print(f'Wrote {index_out}')
+    print(f'Wrote {len(detail_paths)} fingerprint dossiers')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentlens',
@@ -222,6 +231,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_case_update.add_argument('--next-step', help='smallest concrete next debugging action')
     p_case_update.add_argument('--force', action='store_true', help='override validation guard when marking a case fixed')
     p_case_update.set_defaults(func=cmd_case_update)
+
+    p_fingerprints = sub.add_parser('fingerprints', help='render recurring failure dossiers and repair playbooks')
+    fingerprints_sub = p_fingerprints.add_subparsers(dest='fingerprints_command', required=True)
+    p_fingerprint_report = fingerprints_sub.add_parser('report', help='write fingerprint dossier pages from recent traces')
+    p_fingerprint_report.add_argument('--limit', type=int, default=10, help='how many recent traces to include')
+    p_fingerprint_report.add_argument('--baseline', help='optional saved baseline name to watch for regressions')
+    p_fingerprint_report.set_defaults(func=cmd_fingerprint_report)
 
     return parser
 
