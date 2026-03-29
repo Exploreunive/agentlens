@@ -30,6 +30,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
                 'unresolved': 2,
                 'impact_summary': 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.',
             },
+            'fingerprint_dossier_path': 'artifacts/fingerprints/memory-vs-tool-conflict.html',
             'regression_reasons': ['Candidate emits more suspicious signals than the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -43,6 +44,7 @@ def test_build_debug_inbox_report_contains_priority_sections():
     assert 'workflow_state: `reopened`' in report
     assert 'fingerprint_history: `cases=3 reopened=2 verified=1 unresolved=2`' in report
     assert 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.' in report
+    assert 'fingerprint_dossier: `artifacts/fingerprints/memory-vs-tool-conflict.html`' in report
     assert 'trace_view: `artifacts/views/run-a.html`' in report
     assert 'case_file: `artifacts/cases/run-a/README.md`' in report
     assert 'regression_report: `artifacts/regressions/golden__run-a.md`' in report
@@ -72,6 +74,7 @@ def test_build_debug_inbox_html_contains_cards():
                 'unresolved': 2,
                 'impact_summary': 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.',
             },
+            'fingerprint_dossier_path': 'artifacts/fingerprints/memory-vs-tool-conflict.html',
             'regression_reasons': ['Final answer changed relative to the baseline.'],
             'trace_view_path': 'artifacts/views/run-a.html',
             'case_index_path': 'artifacts/cases/run-a/README.md',
@@ -83,6 +86,7 @@ def test_build_debug_inbox_html_contains_cards():
     assert 'run-a.jsonl' in html
     assert 'reopened' in html
     assert 'Reopened 2 time(s); only 1 verified repair(s) have been recorded.' in html
+    assert 'artifacts/fingerprints/memory-vs-tool-conflict.html' in html
     assert 'regressed' in html
     assert 'artifacts/views/run-a.html' in html
     assert 'artifacts/cases/run-a/README.md' in html
@@ -277,6 +281,7 @@ def test_write_debug_inbox_creates_report(tmp_path: Path):
     assert (tmp_path / 'artifacts' / 'views' / 'demo.html').exists()
     assert (tmp_path / 'artifacts' / 'cases' / 'demo' / 'README.md').exists()
     assert (tmp_path / 'artifacts' / 'cases' / 'index.html').exists()
+    assert (tmp_path / 'artifacts' / 'fingerprints' / 'index.html').exists()
 
 
 def test_write_debug_inbox_html_creates_report(tmp_path: Path):
@@ -299,3 +304,4 @@ def test_write_debug_inbox_html_creates_report(tmp_path: Path):
 
     assert out.exists()
     assert 'AgentLens Debug Inbox' in out.read_text(encoding='utf-8')
+    assert (tmp_path / 'artifacts' / 'fingerprints' / 'index.html').exists()

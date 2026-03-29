@@ -159,6 +159,7 @@ def build_fingerprint_index_html(dossiers: list[dict[str, Any]]) -> str:
             <span>verified: <strong>{html.escape(str(row["verified"]))}</strong></span>
           </div>
           <div class="playbook">{html.escape(str(row["playbook"]))}</div>
+          <div class="hint">{html.escape(str(row["impact_summary"]))}</div>
           <div class="hint">Playbook source: {html.escape(str(row["playbook_source"]))}</div>
           <div class="hint">Owners: {html.escape(str(row["owner_summary"] or "unassigned"))}</div>
           <div class="hint">Representative trace: <code>{html.escape(str(row["representative_trace"]))}</code></div>
@@ -303,6 +304,7 @@ def build_fingerprint_detail_html(dossier: dict[str, Any]) -> str:
       <div class="card">
         <div class="eyebrow">Recommended playbook</div>
         <div class="playbook">{html.escape(str(dossier.get("playbook") or ""))}</div>
+        <div class="hint">{html.escape(str(dossier.get("impact_summary") or ""))}</div>
         <div class="hint">Source: {html.escape(str(dossier.get("playbook_source") or "unknown"))}</div>
         <div class="hint">{html.escape(durability_note)}</div>
       </div>

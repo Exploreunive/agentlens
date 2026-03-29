@@ -145,6 +145,7 @@ def collect_debug_inbox(limit: int = 10, baseline_name: Optional[str] = None) ->
         )
     )
     _attach_fingerprint_recurrence(items)
+    _attach_fingerprint_dossier_paths(items)
     return items
 
 

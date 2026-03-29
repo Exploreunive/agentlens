@@ -192,6 +192,25 @@ def test_cli_supports_benchmark_baseline_and_check(tmp_path: Path):
     assert 'AgentLens Benchmark Regression Report' in regression_file.read_text(encoding='utf-8')
 
 
+def test_cli_supports_fingerprint_report(tmp_path: Path):
+    work = tmp_path / 'proj'
+    shutil.copytree(ROOT, work)
+
+    demo = subprocess.run([sys.executable, 'cli.py', 'demo', 'failure'], cwd=work, capture_output=True, text=True)
+    assert demo.returncode == 0, demo.stderr
+
+    report = subprocess.run(
+        [sys.executable, 'cli.py', 'fingerprints', 'report'],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+    assert report.returncode == 0, report.stderr
+    assert 'artifacts/fingerprints/index.html' in report.stdout
+    assert 'fingerprint dossiers' in report.stdout
+    assert (work / 'artifacts' / 'fingerprints' / 'index.html').exists()
+
+
 def test_cli_supports_case_update(tmp_path: Path):
     work = tmp_path / 'proj'
     shutil.copytree(ROOT, work)
